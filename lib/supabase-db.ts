@@ -10,6 +10,9 @@ import {
     Contact,
     CampaignStatus,
     ContactStatus,
+    LeadForm,
+    CreateLeadFormDTO,
+    UpdateLeadFormDTO,
     Template,
     TemplateCategory,
     TemplateStatus,
@@ -33,6 +36,20 @@ const generateId = () => {
 
     // Fallback (menos ideal, mas evita quebrar em runtimes sem randomUUID)
     return Math.random().toString(36).slice(2)
+}
+
+const generateWebhookToken = () => {
+    // Token opaco para uso em integrações/webhooks (não é senha de usuário).
+    // Mantemos simples e disponível em runtimes edge/node.
+    try {
+        if (typeof globalThis.crypto?.randomUUID === 'function') {
+            return `lfw_${globalThis.crypto.randomUUID().replace(/-/g, '')}`
+        }
+    } catch {
+        // ignore
+    }
+
+    return `lfw_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
 }
 
 // ============================================================================
@@ -359,6 +376,115 @@ export const contactDb = {
         }
     },
 
+    getByPhone: async (phone: string): Promise<Contact | undefined> => {
+        const { data, error } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('phone', phone)
+            .single()
+
+        if (error || !data) return undefined
+
+        return {
+            id: data.id,
+            name: data.name,
+            phone: data.phone,
+            email: data.email,
+            status: (data.status as ContactStatus) || ContactStatus.OPT_IN,
+            tags: data.tags || [],
+            lastActive: data.updated_at
+                ? new Date(data.updated_at).toLocaleDateString()
+                : (data.created_at ? new Date(data.created_at).toLocaleDateString() : '-'),
+            createdAt: data.created_at,
+            updatedAt: data.updated_at,
+            custom_fields: data.custom_fields,
+        }
+    },
+
+    upsertMergeTagsByPhone: async (
+        contact: Omit<Contact, 'id' | 'lastActive'>,
+        tagsToMerge: string[]
+    ): Promise<Contact> => {
+        const normalizeTag = (t: string) => t.trim()
+        const uniq = (arr: string[]) => Array.from(new Set(arr.map(normalizeTag).filter(Boolean)))
+
+        const mergeCustomFields = (base: any, patch: any) => {
+            const a = (base && typeof base === 'object') ? base : {}
+            const b = (patch && typeof patch === 'object') ? patch : {}
+            return { ...a, ...b }
+        }
+
+        const now = new Date().toISOString()
+
+        const { data: existing } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('phone', contact.phone)
+            .single()
+
+        if (existing) {
+            const mergedTags = uniq([...(existing.tags || []), ...(contact.tags || []), ...tagsToMerge])
+            const mergedCustomFields = mergeCustomFields(existing.custom_fields, contact.custom_fields)
+            const updateData: any = {
+                updated_at: now,
+                tags: mergedTags,
+                custom_fields: mergedCustomFields,
+            }
+
+            if (contact.name) updateData.name = contact.name
+            if (contact.email !== undefined) updateData.email = contact.email
+            if (contact.status) updateData.status = contact.status
+            // custom_fields já foi mesclado acima (não sobrescreve campos antigos)
+
+            const { error: updateError } = await supabase
+                .from('contacts')
+                .update(updateData)
+                .eq('id', existing.id)
+
+            if (updateError) throw updateError
+
+            return {
+                id: existing.id,
+                name: contact.name || existing.name,
+                phone: existing.phone,
+                email: contact.email ?? existing.email,
+                status: (contact.status || existing.status) as ContactStatus,
+                tags: mergedTags,
+                custom_fields: mergedCustomFields,
+                lastActive: 'Agora mesmo',
+                createdAt: existing.created_at,
+                updatedAt: now,
+            }
+        }
+
+        const id = generateId()
+        const mergedTags = uniq([...(contact.tags || []), ...tagsToMerge])
+
+        const { error } = await supabase
+            .from('contacts')
+            .insert({
+                id,
+                name: contact.name || '',
+                phone: contact.phone,
+                email: contact.email || null,
+                status: contact.status || ContactStatus.OPT_IN,
+                tags: mergedTags,
+                custom_fields: contact.custom_fields || {},
+                created_at: now,
+            })
+
+        if (error) throw error
+
+        return {
+            ...contact,
+            id,
+            tags: mergedTags,
+            lastActive: 'Agora mesmo',
+            createdAt: now,
+            updatedAt: now,
+        }
+    },
+
     add: async (contact: Omit<Contact, 'id' | 'lastActive'>): Promise<Contact> => {
         // Check if contact already exists by phone
         const { data: existing } = await supabase
@@ -533,6 +659,158 @@ export const contactDb = {
             })
 
         return stats
+    },
+}
+
+// ============================================================================
+// LEAD FORMS (Captação de contatos)
+// ============================================================================
+
+export const leadFormDb = {
+    getAll: async (): Promise<LeadForm[]> => {
+        const { data, error } = await supabase
+            .from('lead_forms')
+            .select('*')
+            .order('created_at', { ascending: false })
+
+        if (error) throw error
+
+        return (data || []).map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            slug: row.slug,
+            tag: row.tag,
+            isActive: !!row.is_active,
+            successMessage: row.success_message ?? null,
+            webhookToken: row.webhook_token ?? null,
+            fields: Array.isArray(row.fields) ? row.fields : [],
+            createdAt: row.created_at,
+            updatedAt: row.updated_at ?? null,
+        }))
+    },
+
+    getById: async (id: string): Promise<LeadForm | undefined> => {
+        const { data, error } = await supabase
+            .from('lead_forms')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+        if (error || !data) return undefined
+
+        return {
+            id: data.id,
+            name: data.name,
+            slug: data.slug,
+            tag: data.tag,
+            isActive: !!(data as any).is_active,
+            successMessage: (data as any).success_message ?? null,
+            webhookToken: (data as any).webhook_token ?? null,
+            fields: Array.isArray((data as any).fields) ? (data as any).fields : [],
+            createdAt: (data as any).created_at,
+            updatedAt: (data as any).updated_at ?? null,
+        }
+    },
+
+    getBySlug: async (slug: string): Promise<LeadForm | undefined> => {
+        const { data, error } = await supabase
+            .from('lead_forms')
+            .select('*')
+            .eq('slug', slug)
+            .single()
+
+        if (error || !data) return undefined
+
+        return {
+            id: data.id,
+            name: data.name,
+            slug: data.slug,
+            tag: data.tag,
+            isActive: !!(data as any).is_active,
+            successMessage: (data as any).success_message ?? null,
+            webhookToken: (data as any).webhook_token ?? null,
+            fields: Array.isArray((data as any).fields) ? (data as any).fields : [],
+            createdAt: (data as any).created_at,
+            updatedAt: (data as any).updated_at ?? null,
+        }
+    },
+
+    create: async (dto: CreateLeadFormDTO): Promise<LeadForm> => {
+        const now = new Date().toISOString()
+        const id = `lf_${generateId().replace(/-/g, '')}`
+        const webhookToken = generateWebhookToken()
+
+        const { error } = await supabase
+            .from('lead_forms')
+            .insert({
+                id,
+                name: dto.name,
+                slug: dto.slug,
+                tag: dto.tag,
+                is_active: dto.isActive ?? true,
+                success_message: dto.successMessage ?? null,
+                webhook_token: webhookToken,
+                fields: dto.fields || [],
+                created_at: now,
+                updated_at: now,
+            })
+
+        if (error) throw error
+
+        return {
+            id,
+            name: dto.name,
+            slug: dto.slug,
+            tag: dto.tag,
+            isActive: dto.isActive ?? true,
+            successMessage: dto.successMessage ?? null,
+            webhookToken,
+            fields: dto.fields || [],
+            createdAt: now,
+            updatedAt: now,
+        }
+    },
+
+    update: async (id: string, dto: UpdateLeadFormDTO): Promise<LeadForm | undefined> => {
+        const updateData: Record<string, unknown> = {}
+
+        if (dto.name !== undefined) updateData.name = dto.name
+        if (dto.slug !== undefined) updateData.slug = dto.slug
+        if (dto.tag !== undefined) updateData.tag = dto.tag
+        if (dto.isActive !== undefined) updateData.is_active = dto.isActive
+        if (dto.successMessage !== undefined) updateData.success_message = dto.successMessage
+        if ((dto as any).fields !== undefined) updateData.fields = (dto as any).fields
+        updateData.updated_at = new Date().toISOString()
+
+        const { error } = await supabase
+            .from('lead_forms')
+            .update(updateData)
+            .eq('id', id)
+
+        if (error) throw error
+
+        return leadFormDb.getById(id)
+    },
+
+    rotateWebhookToken: async (id: string): Promise<LeadForm | undefined> => {
+        const token = generateWebhookToken()
+
+        const { error } = await supabase
+            .from('lead_forms')
+            .update({ webhook_token: token, updated_at: new Date().toISOString() })
+            .eq('id', id)
+
+        if (error) throw error
+        return leadFormDb.getById(id)
+    },
+
+    delete: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('lead_forms')
+            .delete()
+            .eq('id', id)
+
+        if (error) throw error
     },
 }
 

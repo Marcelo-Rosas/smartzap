@@ -16,6 +16,7 @@ import {
     Bell,
     Zap,
     FileText,
+    ClipboardList,
     AlertTriangle,
     CheckCircle2,
     RefreshCw,
@@ -518,6 +519,7 @@ export function DashboardShell({
         { path: '/conversations', label: 'Conversas', icon: MessageCircle, hidden: true },
         { path: '/templates', label: 'Templates', icon: FileText },
         { path: '/contacts', label: 'Contatos', icon: Users },
+        { path: '/forms', label: 'Formulários', icon: ClipboardList },
         { path: '/settings', label: 'Configurações', icon: Settings },
     ].filter(item => !item.hidden)
 
@@ -534,6 +536,7 @@ export function DashboardShell({
         if (path.startsWith('/flows/builder/')) return 'Editor de Flow'
         if (path === '/templates') return 'Templates'
         if (path.startsWith('/contacts')) return 'Contatos'
+        if (path.startsWith('/forms')) return 'Formulários'
         if (path.startsWith('/settings')) return 'Configurações'
         return 'App'
     }

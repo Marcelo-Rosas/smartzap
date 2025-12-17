@@ -112,6 +112,45 @@ export interface Contact {
   custom_fields?: Record<string, any>;
 }
 
+// =============================================================================
+// LEAD FORMS (Captação de contatos)
+// =============================================================================
+
+export interface LeadForm {
+  id: string;
+  name: string;
+  slug: string;
+  tag: string;
+  isActive: boolean;
+  successMessage?: string | null;
+  webhookToken?: string | null;
+  fields?: LeadFormField[];
+  createdAt?: string;
+  updatedAt?: string | null;
+}
+
+export type LeadFormFieldType = 'text' | 'number' | 'date' | 'select'
+
+export interface LeadFormField {
+  key: string;            // ex: "curso" (vai para contact.custom_fields.curso)
+  label: string;          // ex: "Qual seu curso?"
+  type: LeadFormFieldType;
+  required?: boolean;
+  options?: string[];     // para select
+  order?: number;
+}
+
+export interface CreateLeadFormDTO {
+  name: string;
+  slug: string;
+  tag: string;
+  isActive?: boolean;
+  successMessage?: string | null;
+  fields?: LeadFormField[];
+}
+
+export interface UpdateLeadFormDTO extends Partial<CreateLeadFormDTO> {}
+
 export interface CustomFieldDefinition {
   id: string;
   key: string;

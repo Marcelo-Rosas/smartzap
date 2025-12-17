@@ -149,6 +149,60 @@ export const UpdateLimitsSchema = z.object({
 })
 
 // ============================================================================
+// Lead Forms (Captação de contatos)
+// ============================================================================
+
+export const CreateLeadFormSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório').max(120, 'Nome muito longo'),
+  slug: z
+    .string()
+    .min(3, 'Slug muito curto')
+    .max(80, 'Slug muito longo')
+    // slug seguro pra URL: letras/números + hífen
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug inválido (use letras minúsculas, números e hífen)'),
+  tag: z.string().min(1, 'Tag é obrigatória').max(50, 'Tag muito longa'),
+  isActive: z.boolean().optional().default(true),
+  successMessage: z.string().max(300, 'Mensagem muito longa').optional().nullable(),
+  fields: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .min(1, 'Key é obrigatória')
+          .max(50, 'Key muito longa')
+          .regex(/^[a-z][a-z0-9_]*$/, 'Key inválida (use a-z, 0-9 e _; comece com letra)'),
+        label: z.string().min(1, 'Label é obrigatória').max(80, 'Label muito longa'),
+        type: z.enum(['text', 'number', 'date', 'select']),
+        required: z.boolean().optional().default(false),
+        options: z.array(z.string().min(1).max(60)).max(50).optional(),
+        order: z.number().int().min(0).max(1000).optional(),
+      })
+    )
+    .max(30, 'Máximo de 30 campos')
+    .optional()
+    .default([]),
+})
+
+export const UpdateLeadFormSchema = CreateLeadFormSchema.partial()
+
+export const SubmitLeadFormSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório').max(100, 'Nome muito longo'),
+  phone: z.string().min(10, 'Telefone inválido').max(25, 'Telefone muito longo'),
+  email: z.string().email('Email inválido').optional().nullable(),
+  custom_fields: z.record(z.string(), z.any()).optional().default({}),
+  // Honeypot simples (campo escondido no formulário)
+  website: z.string().optional().default(''),
+}).superRefine((data, ctx) => {
+  if ((data.website || '').trim().length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Spam detectado',
+      path: ['website'],
+    })
+  }
+})
+
+// ============================================================================
 // Helper Function
 // ============================================================================
 
