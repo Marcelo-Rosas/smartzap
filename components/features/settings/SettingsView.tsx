@@ -830,7 +830,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 ) : limitsError ? (
                   <button
                     onClick={onRefreshLimits}
-                    className="px-3 py-1.5 bg-red-500/10 rounded-lg text-xs font-medium text-red-400 border border-red-500/20 flex items-center gap-1.5 hover:bg-red-500/20 transition-colors"
+                    className="h-10 px-3 bg-red-500/10 rounded-lg text-xs font-medium text-red-400 border border-red-500/20 flex items-center gap-1.5 hover:bg-red-500/20 transition-colors"
                   >
                     <AlertCircle size={12} />
                     {limitsErrorMessage || 'Erro ao buscar limites'}
@@ -868,7 +868,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   // Toggle simples. O scroll é feito no useEffect quando vira true.
                   setIsEditing((v) => !v);
                 }}
-                className={`group relative overflow-hidden rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2
+                className={`group relative overflow-hidden rounded-xl h-10 px-4 text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2
                   ${isEditing
                     ? 'bg-white text-black shadow-lg hover:bg-gray-100'
                     : 'bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20'
@@ -880,7 +880,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <button
                 onClick={onDisconnect}
-                className="text-xs font-medium text-red-400/60 hover:text-red-400 hover:bg-red-500/5 px-4 py-2 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
+                className="text-xs font-medium text-red-400/60 hover:text-red-400 hover:bg-red-500/5 h-10 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
               >
                 Desconectar
               </button>
@@ -1028,7 +1028,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         setIsEditingMetaApp(false);
                         setMetaAppSecretDraft('');
                       }}
-                      className="px-4 py-2.5 rounded-xl border border-white/10 text-gray-300 font-medium hover:bg-white/5 transition-colors"
+                      className="h-10 px-4 rounded-xl border border-white/10 text-gray-300 font-medium hover:bg-white/5 transition-colors"
                     >
                       Cancelar
                     </button>
@@ -1061,7 +1061,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         }
                       }}
                       disabled={isSavingMetaApp}
-                      className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-black font-bold transition-colors disabled:opacity-50"
+                      className="h-10 px-5 rounded-xl bg-sky-500 hover:bg-sky-400 text-black font-bold transition-colors disabled:opacity-50"
                     >
                       {isSavingMetaApp ? 'Salvando…' : 'Salvar'}
                     </button>
@@ -1136,7 +1136,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="mt-10 pt-8 border-t border-white/5 flex justify-end gap-4">
               <button
-                className="px-6 py-3 rounded-xl border border-white/10 text-gray-300 font-medium hover:bg-white/5 transition-colors flex items-center gap-2"
+                className="h-10 px-6 rounded-xl border border-white/10 text-gray-300 font-medium hover:bg-white/5 transition-colors flex items-center gap-2"
                 onClick={() => onTestConnection?.()}
                 disabled={!!isTestingConnection}
               >
@@ -1148,7 +1148,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 {isTestingConnection ? 'Testando…' : 'Testar Conexão'}
               </button>
               <button
-                className="px-8 py-3 rounded-xl bg-white text-black font-bold hover:bg-gray-200 transition-colors flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                className="h-10 px-8 rounded-xl bg-white text-black font-bold hover:bg-gray-200 transition-colors flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
                 onClick={() => {
                   onSave();
                   setIsEditing(false);
@@ -1191,13 +1191,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       setTestContactPhone(testContact?.phone || '');
                       setIsEditingTestContact(true);
                     }}
-                    className="px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                    className="h-10 px-4 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
                   >
                     Editar
                   </button>
                   <button
                     onClick={handleRemoveTestContact}
-                    className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    className="h-10 w-10 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   >
                     <X size={16} />
                   </button>
@@ -1240,14 +1240,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         setTestContactName(testContact?.name || '');
                         setTestContactPhone(testContact?.phone || '');
                       }}
-                      className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                      className="h-10 px-4 text-sm text-gray-400 hover:text-white transition-colors"
                     >
                       Cancelar
                     </button>
                   )}
                   <button
                     onClick={handleSaveTestContact}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-medium rounded-lg transition-colors flex items-center gap-2"
+                    className="h-10 px-4 bg-amber-500 hover:bg-amber-400 text-black font-medium rounded-lg transition-colors flex items-center gap-2"
                   >
                     <Smartphone size={16} />
                     Salvar Contato de Teste
@@ -1276,21 +1276,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="flex items-center gap-2">
                 <Link
                   href="/settings/performance"
-                  className="px-4 py-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
+                  className="h-10 px-4 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
                   title="Abrir central de performance (baseline/histórico)"
                 >
                   Performance
                 </Link>
                 <Link
                   href="/settings/meta-diagnostics"
-                  className="px-4 py-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
+                  className="h-10 px-4 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
                   title="Abrir central de diagnóstico Meta (Graph API + infra + ações)"
                 >
                   Diagnóstico
                 </Link>
                 <button
                   onClick={() => setIsEditingTurbo((v) => !v)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
+                  className="h-10 px-4 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
                 >
                   {isEditingTurbo ? 'Fechar' : 'Configurar'}
                 </button>
@@ -1340,7 +1340,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     onClick={handleResetTurbo}
                     disabled={!!isSavingWhatsAppThrottle}
-                    className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
+                    className="h-10 px-3 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
                     title="Reseta o targetMps para startMps"
                   >
                     {isSavingWhatsAppThrottle ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
@@ -1464,7 +1464,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             }));
                             toast.success('Sugestão aplicada no formulário do Turbo. Agora é só Salvar.');
                           }}
-                          className="px-3 py-2 bg-white text-black font-semibold rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                          className="h-10 px-3 bg-white text-black font-semibold rounded-lg hover:bg-gray-200 transition-colors text-sm"
                         >
                           Aplicar no Turbo
                         </button>
@@ -1476,7 +1476,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             setPlannerSeconds(10);
                             toast.message('Exemplo carregado: 174 msgs em 10s');
                           }}
-                          className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-sm text-white"
+                          className="h-10 px-3 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-sm text-white"
                         >
                           Exemplo 174/10s
                         </button>
@@ -1540,7 +1540,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         key={k}
                         type="button"
                         onClick={() => applyTurboPreset(k)}
-                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-xs text-white"
+                        className="h-10 px-3 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-xs text-white"
                         title={TURBO_PRESETS[k].desc}
                       >
                         {TURBO_PRESETS[k].label}
@@ -1671,14 +1671,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         });
                       }
                     }}
-                    className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                    className="h-10 px-4 text-sm text-gray-400 hover:text-white transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleSaveTurbo}
                     disabled={!!isSavingWhatsAppThrottle}
-                    className="px-5 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    className="h-10 px-5 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
                   >
                     {isSavingWhatsAppThrottle ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                     Salvar
@@ -1714,7 +1714,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     onClick={handleSaveAutoSuppression}
                     disabled={!!isSavingAutoSuppression}
-                    className="px-5 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-400 text-black font-semibold transition-all text-sm flex items-center gap-2 shadow-lg shadow-primary-500/10 disabled:opacity-50"
+                    className="h-10 px-5 rounded-xl bg-primary-500 hover:bg-primary-400 text-black font-semibold transition-all text-sm flex items-center gap-2 shadow-lg shadow-primary-500/10 disabled:opacity-50"
                     title="Salvar configurações de auto-supressão"
                   >
                     {isSavingAutoSuppression ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
@@ -1723,7 +1723,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 )}
                 <button
                   onClick={() => setIsEditingAutoSuppression((v) => !v)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
+                  className="h-10 px-4 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm font-medium"
                 >
                   {isEditingAutoSuppression ? 'Fechar' : 'Configurar'}
                 </button>
@@ -1964,7 +1964,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </code>
                   <button
                     onClick={() => handleCopy(computedWebhookUrl || '', 'url')}
-                    className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors shrink-0"
+                    className="h-10 px-3 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors shrink-0"
                     title="Copiar URL"
                   >
                     {copiedField === 'url' ? (
@@ -2083,7 +2083,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     onClick={handleSubscribeMessages}
                     disabled={webhookSubscriptionLoading || webhookSubscriptionMutating || !onSubscribeWebhookMessages}
-                    className="px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-medium rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
+                    className="h-10 px-3 bg-emerald-500 hover:bg-emerald-400 text-black font-medium rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
                     title="Inscrever messages via API"
                   >
                     {webhookSubscriptionMutating ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
@@ -2093,7 +2093,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     onClick={handleUnsubscribeMessages}
                     disabled={webhookSubscriptionLoading || webhookSubscriptionMutating || !onUnsubscribeWebhookMessages}
-                    className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
+                    className="h-10 px-3 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
                     title="Desinscrever (remover subscription)"
                   >
                     {webhookSubscriptionMutating ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
@@ -2269,7 +2269,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                       <button
                                         onClick={() => handleSetZapflowWebhook(phone.id)}
                                         disabled={isSavingOverride}
-                                        className="px-3 py-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-600/50 text-white rounded-lg transition-colors flex items-center gap-1"
+                                        className="h-10 px-3 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-600/50 text-white rounded-lg transition-colors flex items-center gap-1"
                                       >
                                         {isSavingOverride ? (
                                           <Loader2 size={12} className="animate-spin" />
@@ -2283,7 +2283,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                       <button
                                         onClick={() => handleRemoveOverride(phone.id)}
                                         disabled={isSavingOverride}
-                                        className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                        className="h-10 w-10 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                         title="Remover override (voltar para padrão)"
                                       >
                                         <Trash2 size={14} />
@@ -2435,14 +2435,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                       setEditingPhoneId(null);
                                       setOverrideUrl('');
                                     }}
-                                    className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+                                    className="h-10 px-4 text-sm text-gray-400 hover:text-white transition-colors"
                                   >
                                     Cancelar
                                   </button>
                                   <button
                                     onClick={() => handleSetOverride(phone.id)}
                                     disabled={isSavingOverride || !overrideUrl.trim()}
-                                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                                    className="h-10 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
                                   >
                                     {isSavingOverride ? (
                                       <Loader2 size={14} className="animate-spin" />

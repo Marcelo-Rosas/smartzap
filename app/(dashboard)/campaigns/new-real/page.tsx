@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -24,10 +24,13 @@ import { TemplatePreviewCard } from '@/components/ui/TemplatePreviewCard'
 import type { Template, TemplateButton, TemplateComponent } from '@/types'
 import { buildTemplateSpecV1, resolveVarValue } from '@/lib/whatsapp/template-contract'
 import { replaceTemplatePlaceholders } from '@/lib/whatsapp/placeholder'
+import { ContactQuickEditModal } from '@/components/features/contacts/ContactQuickEditModal'
 import { campaignService } from '@/services'
+import type { CampaignPrecheckResult } from '@/services/campaignService'
 import { getBrazilUfFromPhone } from '@/lib/br-geo'
 import { normalizePhoneNumber } from '@/lib/phone-formatter'
 import { parsePhoneNumber } from 'libphonenumber-js'
+import { humanizePrecheckReason, humanizeVarSource, type ContactFixFocus, type ContactFixTarget } from '@/lib/precheck-humanizer'
 
 const steps = [
   { id: 1, label: 'Configuracao' },
@@ -122,6 +125,16 @@ export default function CampaignsNewRealPage() {
   const [isPrecheckLoading, setIsPrecheckLoading] = useState(false)
   const [precheckError, setPrecheckError] = useState<string | null>(null)
   const [precheckTotals, setPrecheckTotals] = useState<{ valid: number; skipped: number } | null>(null)
+  const [precheckResult, setPrecheckResult] = useState<CampaignPrecheckResult | null>(null)
+
+  // Correção (igual ao /new): abrir modal focado para corrigir contatos ignorados.
+  const [quickEditContactId, setQuickEditContactId] = useState<string | null>(null)
+  const [quickEditFocus, setQuickEditFocus] = useState<ContactFixFocus>(null)
+  const [quickEditTitle, setQuickEditTitle] = useState<string>('Editar contato')
+  const [batchFixQueue, setBatchFixQueue] = useState<Array<{ contactId: string; focus: ContactFixFocus; title: string }>>([])
+  const [batchFixIndex, setBatchFixIndex] = useState(0)
+  const batchCloseReasonRef = useRef<'advance' | 'finish' | null>(null)
+  const batchNextRef = useRef<{ contactId: string; focus: ContactFixFocus; title: string } | null>(null)
   const [campaignName, setCampaignName] = useState(() => {
     const now = new Date()
     const day = String(now.getDate()).padStart(2, '0')
@@ -160,6 +173,11 @@ export default function CampaignsNewRealPage() {
     queryFn: () => fetchJson<CustomField[]>('/api/custom-fields?entityType=contact'),
     staleTime: 60_000,
   })
+
+  const customFieldLabelByKey = useMemo(() => {
+    const fields = customFieldsQuery.data || []
+    return Object.fromEntries(fields.map((f) => [f.key, f.label])) as Record<string, string>
+  }, [customFieldsQuery.data])
 
   const tagsQuery = useQuery({
     queryKey: ['contact-tags'],
@@ -452,6 +470,7 @@ export default function CampaignsNewRealPage() {
       if (!contacts.length) {
         setPrecheckTotals({ valid: 0, skipped: 0 })
         setPrecheckError('Nenhum contato encontrado para validar.')
+        setPrecheckResult(null)
         return
       }
 
@@ -471,9 +490,15 @@ export default function CampaignsNewRealPage() {
         valid: result?.totals?.valid ?? 0,
         skipped: result?.totals?.skipped ?? 0,
       })
+
+      setPrecheckResult(result)
+
+      return result
     } catch (error) {
       setPrecheckError((error as Error)?.message || 'Falha ao validar destinatarios.')
       setPrecheckTotals(null)
+      setPrecheckResult(null)
+      return null
     } finally {
       setIsPrecheckLoading(false)
     }
@@ -487,6 +512,40 @@ export default function CampaignsNewRealPage() {
       const contacts = await resolveAudienceContacts()
       if (!contacts.length) {
         setLaunchError('Nenhum contato valido para envio.')
+        return
+      }
+
+      // Alinha com /campaigns/new:
+      // valida via pré-check no momento do envio/criação.
+      // Se nenhum destinatário for válido, não cria a campanha.
+      try {
+        const precheck = await campaignService.precheck({
+          templateName: selectedTemplate.name,
+          contacts: contacts.map((contact) => ({
+            contactId: contact.id,
+            name: contact.name,
+            phone: contact.phone,
+            email: contact.email || undefined,
+            custom_fields: contact.custom_fields || {},
+          })),
+          templateVariables: buildTemplateVariables(),
+        })
+
+        setPrecheckTotals({
+          valid: precheck?.totals?.valid ?? 0,
+          skipped: precheck?.totals?.skipped ?? 0,
+        })
+
+        setPrecheckResult(precheck)
+
+        if ((precheck?.totals?.valid ?? 0) === 0) {
+          setLaunchError('Nenhum destinatário válido para envio. Revise os ignorados e valide novamente.')
+          return
+        }
+      } catch (err) {
+        // Mantém a UI consistente: falha de pré-check impede disparo.
+        setLaunchError((err as Error)?.message || 'Falha ao validar destinatarios antes do envio.')
+        setPrecheckResult(null)
         return
       }
 
@@ -517,6 +576,115 @@ export default function CampaignsNewRealPage() {
     } finally {
       setIsLaunching(false)
     }
+  }
+
+  const fixCandidates = useMemo(() => {
+    const results = precheckResult?.results as any[] | undefined
+    if (!results || !Array.isArray(results)) return [] as Array<{ contactId: string; focus: ContactFixFocus; title: string; subtitle: string }>
+
+    const dedupeTargets = (targets: ContactFixTarget[]): ContactFixTarget[] => {
+      const seen = new Set<string>()
+      const out: ContactFixTarget[] = []
+      for (const t of targets) {
+        const id = t.type === 'email' ? 'email' : `custom_field:${t.key}`
+        if (seen.has(id)) continue
+        seen.add(id)
+        out.push(t)
+      }
+      return out
+    }
+
+    const focusFromTargets = (targets: ContactFixTarget[]): ContactFixFocus => {
+      const uniq = dedupeTargets(targets)
+      if (uniq.length === 0) return null
+      if (uniq.length === 1) return uniq[0]
+      return { type: 'multi', targets: uniq }
+    }
+
+    const out: Array<{ contactId: string; focus: ContactFixFocus; title: string; subtitle: string }> = []
+
+    for (const r of results) {
+      if (!r || r.ok) continue
+      if (r.skipCode !== 'MISSING_REQUIRED_PARAM') continue
+      if (!r.contactId) continue
+
+      const human = humanizePrecheckReason(String(r.reason || ''), { customFieldLabelByKey })
+      const missing = Array.isArray(r.missing) ? (r.missing as any[]) : []
+      const targets: ContactFixTarget[] = []
+      for (const m of missing) {
+        const inf = humanizeVarSource(String(m?.raw || '<vazio>'), customFieldLabelByKey)
+        if (inf.focus) targets.push(inf.focus)
+      }
+      const focus = focusFromTargets(targets) || human.focus || null
+
+      // Se não temos nada focável (ex.: token nome/telefone), não oferece correção via modal.
+      if (!focus) continue
+
+      const label = String(r.name || r.phone || 'Contato')
+      const subtitle = `${label} • ${String(r.phone || '')}`.trim()
+
+      out.push({
+        contactId: String(r.contactId),
+        focus,
+        title: human.title || 'Corrigir contato',
+        subtitle,
+      })
+    }
+
+    // Ordena para uma experiência consistente.
+    return out
+      .sort((a, b) => a.subtitle.localeCompare(b.subtitle, 'pt-BR'))
+  }, [precheckResult, customFieldLabelByKey])
+
+  const openQuickEdit = (item: { contactId: string; focus: ContactFixFocus; title: string }) => {
+    setQuickEditContactId(item.contactId)
+    setQuickEditFocus(item.focus)
+    setQuickEditTitle(`Corrigir • ${item.title}`)
+  }
+
+  const startBatchFix = () => {
+    if (!fixCandidates.length) return
+    const queue = fixCandidates.map((c) => ({ contactId: c.contactId, focus: c.focus, title: c.title }))
+    setBatchFixQueue(queue)
+    setBatchFixIndex(0)
+    openQuickEdit(queue[0])
+  }
+
+  const handleQuickEditSaved = () => {
+    // Revalida best-effort após salvar.
+    setTimeout(() => {
+      runPrecheck()
+    }, 0)
+
+    if (!batchFixQueue.length) return
+    const nextIdx = batchFixIndex + 1
+    if (nextIdx < batchFixQueue.length) {
+      batchNextRef.current = batchFixQueue[nextIdx]
+      batchCloseReasonRef.current = 'advance'
+    } else {
+      batchCloseReasonRef.current = 'finish'
+    }
+  }
+
+  const handleQuickEditClose = () => {
+    // Se o modal fechou após salvar, decidimos se avançamos ou finalizamos.
+    if (batchCloseReasonRef.current === 'advance' && batchNextRef.current) {
+      const next = batchNextRef.current
+      batchNextRef.current = null
+      batchCloseReasonRef.current = null
+      setBatchFixIndex((prev) => Math.min(prev + 1, Math.max(0, batchFixQueue.length - 1)))
+      openQuickEdit(next)
+      return
+    }
+
+    // Encerrar lote (ou fechamento manual).
+    batchNextRef.current = null
+    batchCloseReasonRef.current = null
+    setBatchFixQueue([])
+    setBatchFixIndex(0)
+    setQuickEditContactId(null)
+    setQuickEditFocus(null)
+    setQuickEditTitle('Editar contato')
   }
 
   useEffect(() => {
@@ -623,7 +791,11 @@ export default function CampaignsNewRealPage() {
       const raw = item?.value?.trim() ? item.value : fallback
       // Quando não há valor preenchido, manter o placeholder no preview (evita "**" em OTP: *{{1}}* -> **)
       if (raw === fallback) return fallback
-      return resolveVarValue(raw, previewContact)
+      const resolved = resolveVarValue(raw, previewContact)
+      // Se for variável dinâmica ({{...}}) e não existir no contato de preview, não "apague" o token.
+      // Isso evita bloquear o fluxo no passo 1 e mantém o preview informativo.
+      if (!String(resolved || '').trim() && /\{\{[^}]+\}\}/.test(raw)) return raw
+      return resolved
     }
 
     if (spec.parameterFormat === 'named') {
@@ -653,7 +825,9 @@ export default function CampaignsNewRealPage() {
       const fallback = item?.placeholder || `{{${key}}}`
       const raw = item?.value?.trim() ? item.value : fallback
       if (raw === fallback) return fallback
-      return resolveVarValue(raw, previewContact)
+      const resolved = resolveVarValue(raw, previewContact)
+      if (!String(resolved || '').trim() && /\{\{[^}]+\}\}/.test(raw)) return raw
+      return resolved
     }
 
     if (spec.parameterFormat === 'named') {
@@ -707,8 +881,14 @@ export default function CampaignsNewRealPage() {
   }, [flattenedButtons, previewContact, templateButtonVars, templateSpec])
 
   const missingTemplateVars = useMemo(() => {
+    // Importante: no passo 1, a regra é "preencher todos os campos obrigatórios".
+    // NÃO validamos se a variável dinâmica existe no contato de teste aqui.
+    // A validação de existência/resultado real ocorre no pré-check (passo 3).
+    const isFilled = (v: unknown) => String(v ?? '').trim().length > 0
+
+    // Fallback: se não conseguimos montar spec, validamos pelo estado atual dos campos.
     if (!templateSpec || (templateSpec as any).error) {
-      return [...templateVars.header, ...templateVars.body].filter((item) => item.required && !item.value.trim()).length
+      return [...templateVars.header, ...templateVars.body].filter((item) => item.required && !isFilled(item.value)).length
     }
 
     const spec = templateSpec as ReturnType<typeof buildTemplateSpecV1>
@@ -716,20 +896,19 @@ export default function CampaignsNewRealPage() {
 
     for (const k of spec.header?.requiredKeys || []) {
       const item = templateVars.header.find((v) => v.key === k)
-      const resolved = resolveVarValue(item?.value || '', previewContact)
-      if (!resolved.trim()) missing += 1
+      if (!isFilled(item?.value)) missing += 1
     }
+
     for (const k of spec.body.requiredKeys) {
       const item = templateVars.body.find((v) => v.key === k)
-      const resolved = resolveVarValue(item?.value || '', previewContact)
-      if (!resolved.trim()) missing += 1
+      if (!isFilled(item?.value)) missing += 1
     }
+
     for (const b of spec.buttons) {
       if (b.kind !== 'url' || !b.isDynamic) continue
       for (const k of b.requiredKeys) {
-        const raw = templateButtonVars[`button_${b.index}_${k}`] || ''
-        const resolved = resolveVarValue(raw, previewContact)
-        if (!resolved.trim()) missing += 1
+        const raw = templateButtonVars[`button_${b.index}_${k}`]
+        if (!isFilled(raw)) missing += 1
       }
     }
 
@@ -1867,6 +2046,67 @@ export default function CampaignsNewRealPage() {
                 {precheckError && (
                   <p className="mt-3 text-xs text-amber-300">{precheckError}</p>
                 )}
+
+                {precheckTotals && precheckTotals.skipped > 0 && (
+                  <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950/30 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Corrigir ignorados</p>
+                        <p className="text-xs text-gray-500">
+                          Alguns contatos estao sendo ignorados por falta de email/campo personalizado. Corrija e o pre-check destrava.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => runPrecheck()}
+                          className="rounded-full border border-white/10 bg-zinc-950/40 px-4 py-2 text-xs font-semibold text-gray-200 hover:border-white/20"
+                        >
+                          Validar novamente
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!fixCandidates.length}
+                          onClick={startBatchFix}
+                          className={`rounded-full border px-4 py-2 text-xs font-semibold ${
+                            fixCandidates.length
+                              ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200 hover:border-emerald-300/60'
+                              : 'border-white/10 bg-zinc-950/40 text-gray-500'
+                          }`}
+                        >
+                          Corrigir em lote
+                        </button>
+                      </div>
+                    </div>
+
+                    {fixCandidates.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {fixCandidates.slice(0, 6).map((c) => (
+                          <div
+                            key={c.contactId}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-zinc-950/40 px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-white">{c.subtitle}</p>
+                              <p className="truncate text-xs text-gray-500">{c.title}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openQuickEdit({ contactId: c.contactId, focus: c.focus, title: c.title })}
+                              className="shrink-0 rounded-full border border-white/10 bg-zinc-950/40 px-3 py-1.5 text-xs font-semibold text-gray-200 hover:border-white/20"
+                            >
+                              Corrigir
+                            </button>
+                          </div>
+                        ))}
+
+                        {fixCandidates.length > 6 && (
+                          <p className="pt-1 text-xs text-gray-500">+ {fixCandidates.length - 6} outros — use “Corrigir em lote”.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
@@ -1930,6 +2170,16 @@ export default function CampaignsNewRealPage() {
               </div>
             </div>
           )}
+
+          <ContactQuickEditModal
+            isOpen={Boolean(quickEditContactId)}
+            contactId={quickEditContactId}
+            onClose={handleQuickEditClose}
+            onSaved={handleQuickEditSaved}
+            focus={quickEditFocus}
+            title={quickEditTitle}
+            mode="focused"
+          />
 
           <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

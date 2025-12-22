@@ -203,27 +203,40 @@ export async function POST(request: Request) {
         console.warn('[Campaigns] scheduledAt set, but invalid datetime; skipping QStash enqueue:', data.scheduledAt)
       } else {
         const delaySeconds = Math.max(0, Math.floor((scheduledMs - nowMs) / 1000))
+        const scheduledAtIso = new Date(data.scheduledAt).toISOString()
 
-        const qstash = new QStashClient({ token: process.env.QSTASH_TOKEN })
-        const res = await qstash.publishJSON({
-          url: `${baseUrl}/api/campaign/dispatch`,
-          body: {
-            campaignId: campaign.id,
-            templateName: campaign.templateName,
-            trigger: 'schedule',
-            scheduledAt: new Date(data.scheduledAt).toISOString(),
-          },
-          // One-shot schedule
-          delay: delaySeconds,
-          retries: 3,
-          // Dedup per campaign+scheduled time (best-effort)
-          deduplicationId: `schedule:${campaign.id}:${new Date(data.scheduledAt).toISOString()}`,
-        })
+        try {
+          const qstash = new QStashClient({ token: process.env.QSTASH_TOKEN })
+          const res = await qstash.publishJSON({
+            url: `${baseUrl}/api/campaign/dispatch`,
+            body: {
+              campaignId: campaign.id,
+              templateName: campaign.templateName,
+              trigger: 'schedule',
+              scheduledAt: scheduledAtIso,
+            },
+            // One-shot schedule
+            delay: delaySeconds,
+            retries: 3,
+            // Dedup per campaign+scheduled time (best-effort)
+            deduplicationId: `schedule:${campaign.id}:${scheduledAtIso}`,
+          })
 
-        await campaignDb.updateStatus(campaign.id, {
-          qstashScheduleMessageId: res.messageId,
-          qstashScheduleEnqueuedAt: new Date().toISOString(),
-        })
+          await campaignDb.updateStatus(campaign.id, {
+            qstashScheduleMessageId: res.messageId,
+            qstashScheduleEnqueuedAt: new Date().toISOString(),
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          console.error('[Campaigns] QStash enqueue failed:', message)
+          return NextResponse.json(
+            {
+              error: 'Falha ao agendar campanha (QStash)',
+              details: message,
+            },
+            { status: 502 }
+          )
+        }
       }
     }
 
