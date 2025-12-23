@@ -5,6 +5,31 @@ import path from 'path'
 
 export const runtime = 'nodejs' // Force Node.js runtime to access filesystem
 
+function isMissingRelationError(err: unknown): boolean {
+    const e = err as any
+    const msg = String(e?.message ?? '')
+    const details = String(e?.details ?? '')
+    const hint = String(e?.hint ?? '')
+    const combined = `${msg}\n${details}\n${hint}`.toLowerCase()
+    return (
+        combined.includes('does not exist') ||
+        combined.includes('relation') ||
+        combined.includes('42p01')
+    )
+}
+
+async function execSql(supabase: any, sql: string): Promise<{ ok: true } | { ok: false; error: any }> {
+    // Tentativa 1: contrato antigo (sql_query)
+    const r1 = await supabase.rpc('exec_sql', { sql_query: sql })
+    if (!r1?.error) return { ok: true }
+
+    // Tentativa 2: contrato alternativo (sql)
+    const r2 = await supabase.rpc('exec_sql', { sql })
+    if (!r2?.error) return { ok: true }
+
+    return { ok: false, error: r2.error ?? r1.error }
+}
+
 export async function GET() {
     try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -19,12 +44,12 @@ export async function GET() {
         })
 
         // Check if tables exist
-        const { data: tables, error: checkError } = await supabase
+        const { error: checkError } = await supabase
             .from('settings')
             .select('key')
             .limit(1)
 
-        // If tables exist, skip migration
+        // If settings table exists, skip migration
         if (!checkError) {
             return NextResponse.json({
                 success: true,
@@ -33,20 +58,31 @@ export async function GET() {
             })
         }
 
+        // Se o erro não for "tabela não existe", não assumimos que o DB está vazio.
+        // Pode ser auth/config/etc.
+        if (!isMissingRelationError(checkError)) {
+            return NextResponse.json(
+                {
+                    error: 'Falha ao verificar se o banco já está inicializado. Não foi possível confirmar que o DB está vazio.',
+                    details: (checkError as any)?.message ?? String(checkError),
+                },
+                { status: 500 }
+            )
+        }
+
         // Tables don't exist, run migration
         console.log('Running database migration...')
 
-        const sqlPath = path.join(process.cwd(), 'lib', 'migrations', '0001_initial_schema.sql')
+        // Baseline canônico: supabase/migrations/0001_initial_schema.sql
+        const sqlPath = path.join(process.cwd(), 'supabase', 'migrations', '0001_initial_schema.sql')
         const sql = await fs.readFile(sqlPath, 'utf-8')
 
-        // Execute migration using Supabase SQL endpoint
-        const { error: migrationError } = await supabase.rpc('exec_sql', { sql_query: sql })
-
-        if (migrationError) {
+        const result = await execSql(supabase, sql)
+        if (!result.ok) {
             return NextResponse.json(
                 {
                     error: 'Falha ao executar migração via RPC (exec_sql). Rode o SQL manualmente no Supabase SQL Editor.',
-                    details: migrationError.message,
+                    details: result.error?.message ?? String(result.error),
                 },
                 { status: 500 }
             )

@@ -347,6 +347,12 @@ const BUTTON_ICONS: Record<string, React.ReactNode> = {
   'CATALOG': <MessageSquare size={14} />,
   'MPM': <MessageSquare size={14} />,
   'VOICE_CALL': <Phone size={14} />,
+  'EXTENSION': <MessageSquare size={14} />,
+  'ORDER_DETAILS': <MessageSquare size={14} />,
+  'POSTBACK': <MessageSquare size={14} />,
+  'REMINDER': <MessageSquare size={14} />,
+  'SEND_LOCATION': <MessageSquare size={14} />,
+  'SPM': <MessageSquare size={14} />,
 };
 
 // ============================================================================

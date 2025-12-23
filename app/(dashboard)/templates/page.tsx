@@ -4,10 +4,8 @@ import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTemplatesController } from '@/hooks/useTemplates';
 import { TemplateListView } from '@/components/features/templates/TemplateListView';
-import { useManualDraftsController } from '@/hooks/useManualDrafts';
-import { ManualDraftsView } from '@/components/features/templates/ManualDraftsView';
 import { useTemplateProjectsQuery, useTemplateProjectMutations } from '@/hooks/useTemplateProjects';
-import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, LayoutGrid, Sparkles, Zap, Workflow } from 'lucide-react';
+import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, LayoutGrid, Sparkles, Zap, Workflow, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Page, PageActions, PageDescription, PageHeader, PageTitle } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
@@ -28,17 +26,17 @@ const StatusBadge = ({ status, approvedCount, totalCount }: { status: string; ap
 
   if (isComplete) {
     return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
         Concluído
       </span>
     );
   }
   if (isPartial) {
     return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border bg-blue-500/10 text-blue-400 border-blue-500/20">
+      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border bg-amber-500/10 text-amber-300 border-amber-500/20">
         <span className="relative flex h-2 w-2 mr-1.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
         </span>
         Em Progresso
       </span>
@@ -69,13 +67,31 @@ export default function TemplatesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const controller = useTemplatesController();
-  const draftsController = useManualDraftsController();
   const { data: projects, isLoading: isLoadingProjects, refetch } = useTemplateProjectsQuery();
   const { deleteProject } = useTemplateProjectMutations();
   const [searchTerm, setSearchTerm] = React.useState('');
-  const [activeTab, setActiveTab] = React.useState<'projects' | 'meta' | 'drafts' | 'flows'>('meta');
+  const [activeTab, setActiveTab] = React.useState<'projects' | 'meta' | 'flows'>('meta');
   const [selectedTestFlowId, setSelectedTestFlowId] = React.useState('');
   const [isCreatingFlow, setIsCreatingFlow] = React.useState(false);
+
+  const handleCreateManualTemplate = async () => {
+    const now = new Date()
+    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+    const name = `template_${stamp}`
+    try {
+      const created = await controller.createManualDraft({
+        name,
+        category: 'MARKETING',
+        language: 'pt_BR',
+        parameterFormat: 'positional',
+      })
+      if (created?.id) {
+        router.push(`/templates/drafts/${encodeURIComponent(created.id)}`)
+      }
+    } catch {
+      // Toast já é emitido no controller.
+    }
+  }
 
   // Flows hub state
   const flowSubmissionsController = useFlowSubmissionsController()
@@ -113,12 +129,19 @@ export default function TemplatesPage() {
   // Deep-link: /templates?tab=flows
   React.useEffect(() => {
     const tab = (searchParams?.get('tab') || '').toLowerCase()
-    if (tab === 'meta' || tab === 'drafts' || tab === 'projects' || tab === 'flows') {
+    if (tab === 'drafts') {
+      // Compat: aba antiga virou filtro no tab principal.
+      setActiveTab('meta')
+      controller.setStatusFilter('DRAFT')
+      router.replace('/templates?tab=meta')
+      return
+    }
+    if (tab === 'meta' || tab === 'projects' || tab === 'flows') {
       setActiveTab((prev) => ((prev as any) === tab ? prev : (tab as any)))
     }
-  }, [searchParams])
+  }, [controller, router, searchParams])
 
-  const setTab = (tab: 'projects' | 'meta' | 'drafts' | 'flows') => {
+  const setTab = (tab: 'projects' | 'meta' | 'flows') => {
     setActiveTab(tab)
     router.replace(`/templates?tab=${encodeURIComponent(tab)}`)
   }
@@ -147,25 +170,34 @@ export default function TemplatesPage() {
           <PageDescription>
             {activeTab === 'flows'
               ? 'Crie e monitore WhatsApp Flows, e mapeie respostas para campos do SmartZap.'
-              : 'Gerencie templates da Meta e rascunhos manuais.'}
+              : 'Gerencie templates e rascunhos.'}
           </PageDescription>
         </div>
         <PageActions>
           {activeTab === 'meta' && (
             <div className="flex items-center gap-2">
               <Button
-                onClick={() => controller.setIsBulkModalOpen(true)}
-                className="bg-linear-to-r from-emerald-600 to-teal-600 text-white hover:opacity-90 transition-opacity shadow-lg shadow-emerald-900/20"
+                variant="outline"
+                onClick={handleCreateManualTemplate}
+                className="border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
               >
-                <Zap className="w-4 h-4 text-yellow-300" />
+                <FileText className="w-4 h-4" />
+                Criar template
+              </Button>
+
+              <Button
+                onClick={() => controller.setIsBulkModalOpen(true)}
+                className="bg-emerald-500 text-black hover:bg-emerald-400 transition-colors"
+              >
+                <Zap className="w-4 h-4 text-emerald-900" />
                 Gerar UTILITY em Massa
               </Button>
 
               <Button
                 onClick={() => controller.setIsAiModalOpen(true)}
-                className="bg-linear-to-r from-purple-600 to-blue-600 text-white hover:opacity-90 transition-opacity shadow-lg shadow-purple-900/20"
+                className="bg-zinc-950/40 text-gray-200 border border-white/10 hover:bg-white/5 transition-colors"
               >
-                <Sparkles className="w-4 h-4 text-yellow-300" />
+                <Sparkles className="w-4 h-4 text-emerald-300" />
                 Criar com IA
               </Button>
 
@@ -173,7 +205,7 @@ export default function TemplatesPage() {
                 variant="outline"
                 onClick={controller.onSync}
                 disabled={controller.isSyncing}
-                className="border-white/10 bg-zinc-900 hover:bg-white/5"
+                className="border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
               >
                 <RefreshCw className={cn('w-4 h-4', controller.isSyncing ? 'animate-spin' : '')} />
                 {controller.isSyncing ? 'Sincronizando...' : 'Sincronizar'}
@@ -184,7 +216,7 @@ export default function TemplatesPage() {
           {activeTab === 'projects' && (
             <button
               onClick={() => router.push('/templates/new')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg hover:shadow-emerald-500/20"
+              className="bg-white text-black px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-colors hover:bg-gray-200"
             >
               <Plus className="w-5 h-5" />
               Novo Projeto
@@ -197,6 +229,7 @@ export default function TemplatesPage() {
                 <Button
                   variant="secondary"
                   onClick={() => scrollToId('flow-test-panel')}
+                  className="bg-white text-black hover:bg-gray-200"
                 >
                   Testar envio
                 </Button>
@@ -207,12 +240,12 @@ export default function TemplatesPage() {
       </PageHeader>
 
       {/* TABS */}
-      <div className="flex gap-1 bg-zinc-900 border border-white/5 p-1 rounded-xl w-fit">
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setTab('meta')}
-          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'meta'
-            ? 'bg-white/10 text-white shadow-sm'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
+          className={`rounded-full border px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'meta'
+            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
+            : 'border-white/10 bg-zinc-950/40 text-gray-400 hover:text-white'
             }`}
         >
           <CheckCircle className="w-4 h-4" />
@@ -220,21 +253,10 @@ export default function TemplatesPage() {
         </button>
 
         <button
-          onClick={() => setTab('drafts')}
-          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'drafts'
-            ? 'bg-white/10 text-white shadow-sm'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-        >
-          <LayoutGrid className="w-4 h-4" />
-          Rascunhos Manuais
-        </button>
-
-        <button
           onClick={() => setTab('flows')}
-          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'flows'
-            ? 'bg-white/10 text-white shadow-sm'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
+          className={`rounded-full border px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'flows'
+            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
+            : 'border-white/10 bg-zinc-950/40 text-gray-400 hover:text-white'
             }`}
         >
           <Workflow className="w-4 h-4" />
@@ -243,9 +265,9 @@ export default function TemplatesPage() {
 
         <button
           onClick={() => setTab('projects')}
-          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'projects'
-            ? 'bg-white/10 text-white shadow-sm'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
+          className={`rounded-full border px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'projects'
+            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
+            : 'border-white/10 bg-zinc-950/40 text-gray-400 hover:text-white'
             }`}
         >
           <LayoutGrid className="w-4 h-4" />
@@ -257,35 +279,13 @@ export default function TemplatesPage() {
         <TemplateListView {...controller} hideHeader />
       )}
 
-      {activeTab === 'drafts' && (
-        <ManualDraftsView
-          drafts={draftsController.drafts}
-          isLoading={draftsController.isLoading}
-          isRefreshing={draftsController.isRefreshing}
-          search={draftsController.search}
-          setSearch={draftsController.setSearch}
-          onRefresh={draftsController.refresh}
-          onCreate={({ name, category, language, parameterFormat }) =>
-            draftsController.createDraft({ name, category, language, parameterFormat })
-          }
-          isCreating={draftsController.isCreating}
-          onDelete={(id) => draftsController.deleteDraft(id)}
-          isDeleting={draftsController.isDeleting}
-          onUpdate={(id, patch) => draftsController.updateDraft(id, patch)}
-          isUpdating={draftsController.isUpdating}
-          onSubmit={(id) => draftsController.submitDraft(id)}
-          isSubmitting={draftsController.isSubmitting}
-          normalizeName={draftsController.normalizeTemplateName}
-        />
-      )}
-
       {activeTab === 'flows' && (
         <div className="space-y-6">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] items-start">
             <div className="space-y-4">
-              <div className="glass-panel p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="text-sm text-gray-400">Etapas</div>
+                  <div className="text-xs uppercase tracking-widest text-gray-500">Etapas</div>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                     <span className={flowStage === 'create' ? 'text-white font-semibold' : ''}>1. Criar</span>
                     <span className="opacity-40">→</span>
@@ -351,13 +351,13 @@ export default function TemplatesPage() {
       {activeTab === 'projects' && (
         <>
           {/* Filters Bar */}
-          <div className="glass-panel p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 w-full sm:w-96 bg-zinc-900 border border-white/5 rounded-lg px-4 py-2.5 focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/50 transition-all">
+          <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-96 bg-zinc-950/40 border border-white/10 rounded-xl px-4 py-3 transition-all">
               <Search size={18} className="text-gray-500" />
               <input
                 type="text"
                 placeholder="Buscar projetos..."
-                className="bg-transparent border-none outline-none text-sm w-full text-white placeholder-gray-600"
+                className="bg-transparent border-none outline-none text-sm w-full text-white placeholder:text-gray-600"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -374,10 +374,10 @@ export default function TemplatesPage() {
           </div>
 
           {/* Table */}
-          <div className="glass-panel rounded-xl overflow-hidden">
+          <div className="rounded-2xl border border-white/10 bg-zinc-900/60 shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-white/5 border-b border-white/5 text-gray-400 uppercase tracking-wider text-xs">
+                <thead className="bg-zinc-950/40 border-b border-white/10 text-gray-500 uppercase tracking-widest text-xs">
                   <tr>
                     <th className="px-6 py-4 font-medium">Nome</th>
                     <th className="px-6 py-4 font-medium">Status</th>
@@ -418,7 +418,7 @@ export default function TemplatesPage() {
                                 <Folder size={16} />
                               </div>
                               <div>
-                                <p className="font-medium text-white group-hover:text-primary-400 transition-colors">
+                                <p className="font-medium text-white group-hover:text-emerald-200 transition-colors">
                                   {project.title}
                                 </p>
                               </div>
@@ -455,7 +455,7 @@ export default function TemplatesPage() {
                               <button
                                 onClick={(e) => handleDeleteProject(e, project.id)}
                                 title="Excluir"
-                                className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10"
+                                className="p-2 rounded-lg text-gray-400 hover:text-amber-300 hover:bg-amber-500/10"
                               >
                                 <Trash2 size={16} />
                               </button>

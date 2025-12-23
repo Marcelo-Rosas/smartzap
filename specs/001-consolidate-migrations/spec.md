@@ -80,7 +80,7 @@ Como operador(a) / time de engenharia, eu quero que o processo de consolidação
 ### Functional Requirements
 
 - **FR-001**: O sistema DEVE ter uma única migration “canônica” capaz de criar o esquema completo do banco a partir de um banco vazio.
-- **FR-002**: A migration canônica DEVE representar o estado atual do banco (fonte de verdade), incluindo objetos e regras relevantes: tabelas, colunas, tipos, índices, constraints, funções, triggers, políticas e permissões aplicáveis.
+- **FR-002**: A migration canônica DEVE representar o **estado atual esperado** do banco, tendo como **fonte de verdade** o resultado de aplicar **toda a cadeia de migrations** versionada em `supabase/migrations` a partir de um banco vazio, incluindo objetos e regras relevantes: tabelas, colunas, tipos, índices, constraints, funções, triggers, políticas e permissões aplicáveis.
 - **FR-003**: O repositório DEVE evitar ambiguidade de ordem/versão (ex.: numeração duplicada); após a consolidação, não pode existir mais de um caminho “oficial” para bootstrap do esquema.
 - **FR-004**: O processo DEVE incluir uma validação automatizada que compare o esquema criado pela migration canônica com uma referência do esquema atual e falhe em caso de divergência relevante.
 - **FR-005**: A validação automatizada DEVE gerar um relatório entendível para revisão (o que mudou e onde), para facilitar auditoria.
@@ -108,6 +108,8 @@ Como operador(a) / time de engenharia, eu quero que o processo de consolidação
 - O objetivo principal é reduzir complexidade e risco em setups novos e em CI; ambientes existentes não devem exigir “recriação total” para continuar funcionando.
 - A consolidação trata do esquema (estrutura e regras). Migração de dados (transformações de conteúdo) não é objetivo primário, exceto quando indispensável para manter compatibilidade.
 - O repositório deve manter rastreabilidade do histórico anterior (via versionamento), mas somente uma migration deve ser considerada “oficial” para bootstrap.
+
+- **Definição de referência**: “Esquema atual esperado” = schema resultante de aplicar `supabase/migrations` do zero. Qualquer “drift” manual em bancos existentes é considerado incidente operacional e não é usado como referência para validar o baseline.
 
 ## Out of Scope
 

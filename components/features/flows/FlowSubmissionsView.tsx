@@ -71,7 +71,7 @@ export function FlowSubmissionsView(props: {
 
   return (
     <div className="space-y-4">
-      <div className="glass-panel p-4">
+      <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-sm font-semibold text-white">{props.title || 'Submissões'}</div>
@@ -108,7 +108,7 @@ export function FlowSubmissionsView(props: {
                     value={props.phoneFilter}
                     onChange={(e) => props.onPhoneFilterChange(e.target.value)}
                     placeholder="Ex: +5511999999999"
-                    className="pl-9"
+                    className="pl-9 bg-zinc-950/40 border-white/10 text-white"
                   />
                 </div>
               </div>
@@ -119,7 +119,7 @@ export function FlowSubmissionsView(props: {
                   value={props.flowIdFilter?.trim() ? props.flowIdFilter : '__all__'}
                   onValueChange={(v) => props.onFlowIdFilterChange(v === '__all__' ? '' : v)}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full bg-zinc-950/40 border-white/10 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -139,6 +139,7 @@ export function FlowSubmissionsView(props: {
                   value={props.flowIdFilter}
                   onChange={(e) => props.onFlowIdFilterChange(e.target.value)}
                   placeholder="Ex: 1234567890"
+                  className="bg-zinc-950/40 border-white/10 text-white"
                 />
               </div>
             </div>
@@ -155,10 +156,10 @@ export function FlowSubmissionsView(props: {
         </div>
       </div>
 
-      <div className="glass-panel p-0 overflow-hidden">
+      <div className="rounded-2xl border border-white/10 bg-zinc-900/60 shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden">
         <table className="w-full text-left text-sm">
-          <thead className="bg-white/5">
-            <tr className="text-gray-300">
+          <thead className="bg-zinc-950/40">
+            <tr className="text-gray-400">
               <th className="px-4 py-3 font-semibold">Data</th>
               <th className="px-4 py-3 font-semibold">Telefone</th>
               <th className="px-4 py-3 font-semibold">Flow</th>
@@ -179,7 +180,7 @@ export function FlowSubmissionsView(props: {
                 const builder = r.flow_id ? builderByMetaFlowId.get(String(r.flow_id)) : undefined
                 return (
                   <Fragment key={r.id}>
-                    <tr className="border-t border-white/5 hover:bg-white/5">
+                    <tr className="border-t border-white/10 hover:bg-white/5">
                       <td className="px-4 py-3 text-gray-200">{formatDateTime(r.created_at)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-300">{r.from_phone}</td>
                       <td className="px-4 py-3">
@@ -189,7 +190,7 @@ export function FlowSubmissionsView(props: {
                         )}
                         {builder && (
                           <div className="mt-1 flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10">
+                            <Badge variant="secondary" className="bg-zinc-950/40 text-gray-200 border-white/10">
                               Builder
                             </Badge>
                             <Link
@@ -224,16 +225,16 @@ export function FlowSubmissionsView(props: {
                       </td>
                     </tr>
                     {isOpen && (
-                      <tr key={`${r.id}_details`} className="border-t border-white/5 bg-black/20">
+                      <tr key={`${r.id}_details`} className="border-t border-white/10 bg-black/20">
                         <td colSpan={5} className="px-4 py-4">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div className="rounded-xl bg-zinc-950/60 border border-white/5 p-3">
+                            <div className="rounded-xl bg-zinc-950/40 border border-white/10 p-3">
                               <div className="text-xs text-gray-400 mb-2">response_json (parseado)</div>
                               <pre className="text-[11px] leading-relaxed text-gray-200 overflow-auto max-h-80">
 {safePrettyJson(r.response_json)}
                               </pre>
                             </div>
-                            <div className="rounded-xl bg-zinc-950/60 border border-white/5 p-3">
+                            <div className="rounded-xl bg-zinc-950/40 border border-white/10 p-3">
                               <div className="text-xs text-gray-400 mb-2">response_json_raw</div>
                               <pre className="text-[11px] leading-relaxed text-gray-200 overflow-auto max-h-80">
 {safePrettyJson(r.response_json_raw)}
@@ -242,15 +243,15 @@ export function FlowSubmissionsView(props: {
                           </div>
 
                           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                            <div className="rounded-lg bg-white/5 border border-white/5 p-2">
+                            <div className="rounded-lg bg-zinc-950/40 border border-white/10 p-2">
                               <div className="text-gray-400">message_id</div>
                               <div className="font-mono text-[11px] text-gray-200 break-all">{r.message_id}</div>
                             </div>
-                            <div className="rounded-lg bg-white/5 border border-white/5 p-2">
+                            <div className="rounded-lg bg-zinc-950/40 border border-white/10 p-2">
                               <div className="text-gray-400">phone_number_id</div>
                               <div className="font-mono text-[11px] text-gray-200 break-all">{r.phone_number_id || '—'}</div>
                             </div>
-                            <div className="rounded-lg bg-white/5 border border-white/5 p-2">
+                            <div className="rounded-lg bg-zinc-950/40 border border-white/10 p-2">
                               <div className="text-gray-400">message_timestamp</div>
                               <div className="text-gray-200">{formatDateTime(r.message_timestamp)}</div>
                             </div>

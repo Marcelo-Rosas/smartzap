@@ -55,7 +55,7 @@ export const PhoneButtonSchema = z.object({
 /** Schema Zod para botão do tipo COPY_CODE (copiar código/cupom). */
 export const CopyCodeButtonSchema = z.object({
     type: z.literal('COPY_CODE'),
-    example: z.string().optional(), // Exemplo do código
+    example: z.union([z.string(), z.array(z.string())]).optional(), // Exemplo do código
 });
 
 // 5. OTP Button - Para templates de autenticação
@@ -100,6 +100,60 @@ export const VoiceCallButtonSchema = z.object({
     text: z.string().min(1).max(25, 'Botão: máximo 25 caracteres'),
 });
 
+// 10. Extension Button - Tipos adicionais documentados
+/** Schema Zod para botão do tipo EXTENSION. */
+export const ExtensionButtonSchema = z.object({
+    type: z.literal('EXTENSION'),
+    text: z.string().max(25).optional(),
+    payload: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    action: z.record(z.string(), z.unknown()).optional(),
+});
+
+// 11. Order Details Button
+/** Schema Zod para botão do tipo ORDER_DETAILS. */
+export const OrderDetailsButtonSchema = z.object({
+    type: z.literal('ORDER_DETAILS'),
+    text: z.string().max(25).optional(),
+    payload: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    action: z.record(z.string(), z.unknown()).optional(),
+});
+
+// 12. Postback Button
+/** Schema Zod para botão do tipo POSTBACK. */
+export const PostbackButtonSchema = z.object({
+    type: z.literal('POSTBACK'),
+    text: z.string().max(25).optional(),
+    payload: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    action: z.record(z.string(), z.unknown()).optional(),
+});
+
+// 13. Reminder Button
+/** Schema Zod para botão do tipo REMINDER. */
+export const ReminderButtonSchema = z.object({
+    type: z.literal('REMINDER'),
+    text: z.string().max(25).optional(),
+    payload: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    action: z.record(z.string(), z.unknown()).optional(),
+});
+
+// 14. Send Location Button
+/** Schema Zod para botão do tipo SEND_LOCATION. */
+export const SendLocationButtonSchema = z.object({
+    type: z.literal('SEND_LOCATION'),
+    text: z.string().max(25).optional(),
+    payload: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    action: z.record(z.string(), z.unknown()).optional(),
+});
+
+// 15. Single Product Message Button
+/** Schema Zod para botão do tipo SPM. */
+export const SpmButtonSchema = z.object({
+    type: z.literal('SPM'),
+    text: z.string().max(25).optional(),
+    payload: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    action: z.record(z.string(), z.unknown()).optional(),
+});
+
 // Union de todos os tipos de botão
 /**
  * Union discriminada (`type`) de todos os tipos de botões suportados.
@@ -116,6 +170,12 @@ export const ButtonSchema = z.discriminatedUnion('type', [
     CatalogButtonSchema,
     MpmButtonSchema,
     VoiceCallButtonSchema,
+    ExtensionButtonSchema,
+    OrderDetailsButtonSchema,
+    PostbackButtonSchema,
+    ReminderButtonSchema,
+    SendLocationButtonSchema,
+    SpmButtonSchema,
 ]);
 
 // =========================
@@ -134,6 +194,10 @@ export const HeaderSchema = z.object({
     // Para mídia (IMAGE, VIDEO, DOCUMENT)
     example: z.object({
         header_text: z.array(z.string()).optional(), // Para variáveis {{1}} no texto
+        header_text_named_params: z.array(z.object({
+            param_name: z.string().min(1),
+            example: z.string().min(1),
+        })).optional(),
         header_handle: z.array(z.string()).optional(), // ID da mídia uploadada
     }).optional().nullable(),
 }).optional().nullable();
@@ -160,6 +224,10 @@ export const BodySchema = z.object({
     text: z.string().min(1, 'Conteúdo obrigatório').max(1024, 'Body: máximo 1024 caracteres'),
     example: z.object({
         body_text: z.array(z.array(z.string())).optional(),
+        body_text_named_params: z.array(z.object({
+            param_name: z.string().min(1),
+            example: z.string().min(1),
+        })).optional(),
     }).optional(),
 });
 
@@ -195,7 +263,7 @@ export const CarouselSchema = z.object({
 
 /** Schema Zod para Limited Time Offer (LTO) em templates de marketing. */
 export const LimitedTimeOfferSchema = z.object({
-    text: z.string().max(16, 'LTO texto: máximo 16 caracteres'),
+    text: z.string().min(1, 'LTO texto obrigatório').max(16, 'LTO texto: máximo 16 caracteres'),
     has_expiration: z.boolean().default(true),
 }).optional().nullable();
 
@@ -252,6 +320,34 @@ export const CreateTemplateSchema = z.object({
     code_expiration_minutes: z.number().min(1).max(90).optional(),
 }).superRefine((data, ctx) => {
     const buttons = (data.buttons || []).filter(Boolean) as Array<{ type: string; url?: string; text?: string }>
+    const bodyText = String(data.body?.text || data.content || '')
+    const headerText = data.header?.format === 'TEXT' ? String(data.header?.text || '') : ''
+    const footerText = String(data.footer?.text || '')
+    const parameterFormat = data.parameter_format || 'positional'
+
+    const extractTokens = (text: string) =>
+        (text.match(/\{\{\s*([^}]+)\s*\}\}/g) || []).map((m) => m.replace(/\{\{|\}\}/g, '').trim()).filter(Boolean)
+
+    const textHasEdgeParameter = (text: string) => {
+        const trimmed = text.trim()
+        if (!trimmed) return { starts: false, ends: false }
+        return {
+            starts: /^\{\{\s*[^}]+\s*\}\}/.test(trimmed),
+            ends: /\{\{\s*[^}]+\s*\}\}$/.test(trimmed),
+        }
+    }
+
+    const missingPositional = (tokens: string[]) => {
+        const numbers = tokens.filter((t) => /^\d+$/.test(t)).map((t) => Number(t)).filter((n) => n >= 1)
+        if (!numbers.length) return []
+        const max = Math.max(...numbers)
+        const set = new Set(numbers)
+        const missing: number[] = []
+        for (let i = 1; i <= max; i += 1) {
+            if (!set.has(i)) missing.push(i)
+        }
+        return missing
+    }
 
     // Regras práticas (documented-only / UX Meta-like)
     const countByType = buttons.reduce<Record<string, number>>((acc, b) => {
@@ -312,5 +408,195 @@ export const CreateTemplateSchema = z.object({
                 message: 'parameter_format=named não suporta URL dinâmica em botões. Use positional ou URL fixa.'
             })
         }
+    }
+
+    if (footerText && /\{\{[^}]+\}\}/.test(footerText)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['footer', 'text'],
+            message: 'Footer não permite variáveis.'
+        })
+    }
+
+    if (headerText) {
+        const headerTokens = extractTokens(headerText)
+        if (headerTokens.length > 1) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['header', 'text'],
+                message: 'Header de texto suporta apenas 1 variável.'
+            })
+        }
+
+        const headerEdge = textHasEdgeParameter(headerText)
+        if (headerEdge.starts || headerEdge.ends) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['header', 'text'],
+                message: 'Header não pode começar nem terminar com variável.'
+            })
+        }
+
+        if (parameterFormat === 'positional') {
+            const invalid = headerTokens.filter((t) => !/^\d+$/.test(t) || Number(t) < 1)
+            const missing = missingPositional(headerTokens)
+            if (invalid.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['header', 'text'],
+                    message: 'Header no modo posicional aceita apenas {{1}}, {{2}}, etc.'
+                })
+            }
+            if (missing.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['header', 'text'],
+                    message: 'Header posicional deve começar em {{1}} e não ter buracos.'
+                })
+            }
+        } else {
+            const invalid = headerTokens.filter((t) => !/^[a-z][a-z0-9_]*$/.test(t))
+            const counts = new Map<string, number>()
+            for (const token of headerTokens) counts.set(token, (counts.get(token) || 0) + 1)
+            const duplicates = Array.from(counts.entries()).filter(([, count]) => count > 1).map(([token]) => token)
+            if (invalid.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['header', 'text'],
+                    message: 'Header no modo named aceita apenas minúsculas e underscore.'
+                })
+            }
+            if (duplicates.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['header', 'text'],
+                    message: 'Nomes de variável no header devem ser únicos.'
+                })
+            }
+        }
+    }
+
+    if (bodyText) {
+        const bodyTokens = extractTokens(bodyText)
+        const bodyEdge = textHasEdgeParameter(bodyText)
+        if (bodyEdge.starts || bodyEdge.ends) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['body', 'text'],
+                message: 'Body não pode começar nem terminar com variável.'
+            })
+        }
+
+        if (parameterFormat === 'positional') {
+            const invalid = bodyTokens.filter((t) => !/^\d+$/.test(t) || Number(t) < 1)
+            const missing = missingPositional(bodyTokens)
+            if (invalid.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['body', 'text'],
+                    message: 'Body no modo posicional aceita apenas {{1}}, {{2}}, etc.'
+                })
+            }
+            if (missing.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['body', 'text'],
+                    message: 'Body posicional deve começar em {{1}} e não ter buracos.'
+                })
+            }
+        } else {
+            const invalid = bodyTokens.filter((t) => !/^[a-z][a-z0-9_]*$/.test(t))
+            const counts = new Map<string, number>()
+            for (const token of bodyTokens) counts.set(token, (counts.get(token) || 0) + 1)
+            const duplicates = Array.from(counts.entries()).filter(([, count]) => count > 1).map(([token]) => token)
+            if (invalid.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['body', 'text'],
+                    message: 'Body no modo named aceita apenas minúsculas e underscore.'
+                })
+            }
+            if (duplicates.length) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['body', 'text'],
+                    message: 'Nomes de variável no body devem ser únicos.'
+                })
+            }
+        }
+    }
+
+    if (data.limited_time_offer) {
+        if (!String(data.limited_time_offer.text || '').trim()) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['limited_time_offer', 'text'],
+                message: 'Limited Time Offer exige texto.'
+            })
+        }
+
+        if (data.category !== 'MARKETING') {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['limited_time_offer'],
+                message: 'Limited Time Offer só é permitido em templates MARKETING.'
+            })
+        }
+
+        if (bodyText.length > 600) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['body'],
+                message: 'Limited Time Offer exige body com no máximo 600 caracteres.'
+            })
+        }
+
+        if (data.footer?.text) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['footer'],
+                message: 'Limited Time Offer não permite rodapé.'
+            })
+        }
+
+        if (data.header?.format && !['IMAGE', 'VIDEO'].includes(String(data.header.format))) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['header'],
+                message: 'Limited Time Offer aceita apenas cabeçalho IMAGE ou VIDEO.'
+            })
+        }
+
+        if ((countByType.COPY_CODE || 0) === 0) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['buttons'],
+                message: 'Limited Time Offer exige botão COPY_CODE com exemplo.'
+            })
+        }
+
+        const copyCodes = (data.buttons || []).filter((b: any) => b?.type === 'COPY_CODE')
+        const hasInvalidCopyCode = copyCodes.some((b: any) => {
+            const value = b?.example
+            const examples = Array.isArray(value) ? value : [value].filter(Boolean)
+            if (examples.length === 0) return true
+            return examples.some((ex) => String(ex || '').length > 15)
+        })
+
+        if (hasInvalidCopyCode) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['buttons'],
+                message: 'Limited Time Offer exige exemplo do COPY_CODE com até 15 caracteres.'
+            })
+        }
+    }
+
+    if (data.header?.format === 'TEXT' && !String(data.header?.text || '').trim()) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['header', 'text'],
+            message: 'Cabeçalho de texto exige um valor.'
+        })
     }
 });

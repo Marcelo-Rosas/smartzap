@@ -9,7 +9,8 @@ const nextConfig: NextConfig = {
 
   // Include SQL migration files in the serverless bundle
   outputFileTracingIncludes: {
-    '/api/setup/migrate': ['./lib/migrations/**/*'],
+    '/api/setup/migrate': ['./supabase/migrations/**/*', './lib/migrations/**/*'],
+    '/api/setup/auto-migrate': ['./supabase/migrations/**/*', './lib/migrations/**/*'],
   },
 
   // Environment variables exposed to client

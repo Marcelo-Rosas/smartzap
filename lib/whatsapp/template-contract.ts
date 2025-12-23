@@ -101,7 +101,8 @@ function isBlank(value: unknown): boolean {
 
 function getParameterFormatFromTemplate(template: any): TemplateParameterFormat {
   const pf = (template?.parameter_format || template?.parameterFormat) as unknown
-  return pf === 'named' ? 'named' : 'positional'
+  const normalized = typeof pf === 'string' ? pf.toLowerCase() : ''
+  return normalized === 'named' ? 'named' : 'positional'
 }
 
 function extractPositionalKeys(text: string): string[] {
@@ -131,7 +132,7 @@ function extractNamedKeys(text: string): string[] {
   for (const m of matches) {
     const name = m.replace(/[{}]/g, '')
     // documented rule: lowercase, numbers, underscore
-    if (!/^[a-z0-9_]+$/.test(name)) {
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) {
       throw new Error(`Placeholder nomeado inválido: {{${name}}}. Use apenas letras minúsculas, números e underscore.`)
     }
     names.add(name)

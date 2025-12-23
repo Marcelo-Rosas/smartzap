@@ -112,9 +112,9 @@ export function ManualDraftsView({
       </div>
 
       <div className="space-y-6 max-w-[min(900px,100%)]">
-        <div className="glass-panel p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-400">Etapas</div>
+            <div className="text-xs uppercase tracking-widest text-gray-500">Etapas</div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
               <span className={draftStage === 'create' ? 'text-white font-semibold' : ''}>1. Criar</span>
               <span className="opacity-40">→</span>
@@ -132,7 +132,7 @@ export function ManualDraftsView({
               variant="outline"
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="border-white/10 bg-zinc-900 hover:bg-white/5"
+              className="border-white/10 bg-zinc-950/40 text-gray-200 hover:text-white hover:bg-white/5"
             >
               <RefreshCw className={cn('w-4 h-4', isRefreshing ? 'animate-spin' : '')} />
               Atualizar
@@ -140,19 +140,19 @@ export function ManualDraftsView({
           </div>
         </div>
 
-        <div className="glass-panel p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar rascunhos..."
-            className="bg-zinc-900 border-white/5 text-white placeholder-gray-600 w-full sm:w-96"
+            className="bg-zinc-950/40 border-white/10 text-white placeholder:text-gray-600 w-full sm:w-96"
           />
           <div className="text-xs text-gray-400">
             {drafts.length} rascunho(s) • {readyDrafts.length} pronto(s) para envio
           </div>
         </div>
 
-        <div className="glass-panel rounded-xl overflow-hidden">
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden">
         {isLoading ? (
           <div className="px-6 py-10 text-center text-gray-400">Carregando...</div>
         ) : drafts.length === 0 ? (
@@ -161,17 +161,17 @@ export function ManualDraftsView({
             <div className="text-xs text-gray-500 mt-1">Clique em “Criar rascunho” para começar.</div>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
-            <div className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <div className="divide-y divide-white/10">
+            <div className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
               Em edição ({editingDrafts.length})
             </div>
             {editingDrafts.length === 0 ? (
-              <div className="px-4 py-5 text-sm text-gray-500">Tudo pronto para enviar.</div>
+              <div className="px-6 py-5 text-sm text-gray-500">Tudo pronto para enviar.</div>
             ) : (
               editingDrafts.slice(0, 3).map((draft) => {
                 const snippet = extractDraftBody(draft).trim()
                 return (
-                  <div key={draft.id} className="px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-white/5">
+                  <div key={draft.id} className="px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-white/5">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="text-white font-medium truncate">{draft.name}</div>
@@ -210,7 +210,7 @@ export function ManualDraftsView({
             )}
 
             {editingDrafts.length > 3 && (
-              <div className="px-4 py-3 flex items-center justify-between text-xs text-gray-500">
+              <div className="px-6 py-3 flex items-center justify-between text-xs text-gray-500">
                 <span>Mostrando 3 de {editingDrafts.length}.</span>
                 <button
                   type="button"
@@ -222,16 +222,16 @@ export function ManualDraftsView({
               </div>
             )}
 
-            <div className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
               Prontos para enviar ({readyDrafts.length})
             </div>
             {readyDrafts.length === 0 ? (
-              <div className="px-4 py-5 text-sm text-gray-500">Nenhum rascunho pronto ainda.</div>
+              <div className="px-6 py-5 text-sm text-gray-500">Nenhum rascunho pronto ainda.</div>
             ) : (
               readyDrafts.slice(0, 3).map((draft) => {
                 const snippet = extractDraftBody(draft).trim()
                 return (
-                  <div key={draft.id} className="px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-white/5">
+                  <div key={draft.id} className="px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-white/5">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="text-white font-medium truncate">{draft.name}</div>
@@ -280,7 +280,7 @@ export function ManualDraftsView({
             )}
 
             {readyDrafts.length > 3 && (
-              <div className="px-4 py-3 flex items-center justify-between text-xs text-gray-500">
+              <div className="px-6 py-3 flex items-center justify-between text-xs text-gray-500">
                 <span>Mostrando 3 de {readyDrafts.length}.</span>
                 <button
                   type="button"

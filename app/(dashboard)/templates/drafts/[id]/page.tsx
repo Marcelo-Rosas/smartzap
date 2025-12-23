@@ -4,7 +4,7 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowLeft, Save, Send, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Page, PageHeader, PageTitle, PageDescription } from '@/components/ui/page'
 import { manualDraftsService } from '@/services/manualDraftsService'
@@ -84,11 +84,32 @@ export default function ManualDraftEditorPage({
     }
   })()
 
+  const handleSend = async () => {
+    if (!validation.canSend) {
+      toast.error(validation.issues[0] || 'Revise o template antes de enviar')
+      return
+    }
+
+    const spec = getCurrentSpec()
+    if (!spec) {
+      toast.error('Nada para enviar')
+      return
+    }
+
+    // Garante que o rascunho no banco está atualizado antes de submeter.
+    await updateMutation.mutateAsync(spec)
+    await submitMutation.mutateAsync()
+  }
+
   return (
     <Page>
       <PageHeader>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => router.back()} className="border-white/10 bg-zinc-900 hover:bg-white/5">
+          <Button
+            variant="outline"
+            onClick={() => router.back()}
+            className="border-white/10 bg-zinc-950/40 text-gray-200 hover:text-white hover:bg-white/5"
+          >
             <ArrowLeft className="w-4 h-4" />
             Voltar
           </Button>
@@ -101,28 +122,30 @@ export default function ManualDraftEditorPage({
         </div>
       </PageHeader>
 
-      <div className="pb-28">
+      <div>
         {shouldShowLoading ? (
-        <div className="glass-panel p-8 rounded-xl text-gray-300 flex items-center gap-3">
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] text-gray-300 flex items-center gap-3">
           <Loader2 className="w-5 h-5 animate-spin" />
           Carregando rascunho...
         </div>
       ) : draftQuery.isError ? (
-        <div className="glass-panel p-8 rounded-xl text-red-300 space-y-3">
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] text-amber-200 space-y-3">
           <div className="font-medium">Falha ao carregar rascunho.</div>
-          <div className="text-sm text-red-200/90 whitespace-pre-wrap">{loadErrorMessage}</div>
+          <div className="text-sm text-amber-200/90 whitespace-pre-wrap">{loadErrorMessage}</div>
           <div>
             <Button
               variant="outline"
               onClick={() => draftQuery.refetch()}
-              className="border-white/10 bg-zinc-900 hover:bg-white/5"
+              className="border-white/10 bg-zinc-950/40 text-gray-200 hover:text-white hover:bg-white/5"
             >
               Tentar novamente
             </Button>
           </div>
         </div>
       ) : !draft ? (
-        <div className="glass-panel p-8 rounded-xl text-gray-300">Rascunho não encontrado.</div>
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] text-gray-300">
+          Rascunho não encontrado.
+        </div>
       ) : (
         <ManualTemplateBuilder
           id={draft.id}
@@ -131,65 +154,12 @@ export default function ManualDraftEditorPage({
             // Otimista: mantém o spec no cache para o botão Salvar usar
             queryClient.setQueryData(['templates', 'drafts', 'manual', id], (prev: any) => ({ ...prev, spec }))
           }}
+          onFinish={() => {
+            void handleSend()
+          }}
+          isFinishing={updateMutation.isPending || submitMutation.isPending}
         />
       )}
-      </div>
-
-      {/* Barra inferior fixa (como na Meta) */}
-      <div className="fixed left-0 right-0 bottom-0 z-40 border-t border-white/10 bg-zinc-950/95 backdrop-blur supports-backdrop-filter:bg-zinc-950/70">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            onClick={() => router.back()}
-            className="border-white/10 bg-zinc-900 hover:bg-white/5"
-          >
-            Voltar
-          </Button>
-
-          <div className="hidden md:block text-xs text-gray-400">
-            {validation.issues.length === 0 ? (
-              <span className="text-emerald-300">Pronto para enviar</span>
-            ) : (
-              <span>
-                {validation.issues.length === 1
-                  ? `Falta: ${validation.issues[0]}`
-                  : `Faltam: ${validation.issues.slice(0, 2).join(' • ')}${validation.issues.length > 2 ? '…' : ''}`}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                const current = getCurrentSpec()
-                updateMutation.mutate(current)
-              }}
-              disabled={!draft || updateMutation.isPending}
-              className="border-white/10 bg-zinc-900 hover:bg-white/5"
-            >
-              {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Salvar rascunho
-            </Button>
-
-            <Button
-              onClick={async () => {
-                try {
-                  const current = getCurrentSpec()
-                  await updateMutation.mutateAsync(current)
-                  await submitMutation.mutateAsync()
-                } catch {
-                  // erros já são exibidos via onError
-                }
-              }}
-              disabled={!draft || submitMutation.isPending || updateMutation.isPending || !validation.canSend}
-              className={!validation.canSend ? 'opacity-60' : ''}
-            >
-              {submitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Enviar para análise
-            </Button>
-          </div>
-        </div>
       </div>
     </Page>
   )

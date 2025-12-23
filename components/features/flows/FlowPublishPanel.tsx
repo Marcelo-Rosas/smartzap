@@ -29,15 +29,15 @@ function statusInfo(flow: FlowRow): { label: string; className: string } {
   }
 
   if (metaStatus === 'REJECTED' || metaStatus === 'ERROR' || hasErrors) {
-    return { label: 'Requer ação', className: 'bg-red-500/10 text-red-300 border-red-500/20' }
+    return { label: 'Requer ação', className: 'bg-amber-500/10 text-amber-200 border-amber-500/20' }
   }
 
   if (metaStatus === 'PENDING' || metaStatus === 'IN_REVIEW') {
-    return { label: 'Em revisão', className: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20' }
+    return { label: 'Em revisão', className: 'bg-amber-500/10 text-amber-200 border-amber-500/20' }
   }
 
   if (metaStatus) {
-    return { label: metaStatus, className: 'bg-blue-500/10 text-blue-300 border-blue-500/20' }
+    return { label: metaStatus, className: 'bg-zinc-500/10 text-gray-300 border-white/10' }
   }
 
   return { label: 'Rascunho', className: 'bg-white/5 text-gray-300 border-white/10' }
@@ -107,7 +107,7 @@ export function FlowPublishPanel({
   }
 
   return (
-    <div className="glass-panel p-5 space-y-4">
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-base font-semibold text-white">2. Publicar</div>
@@ -130,7 +130,7 @@ export function FlowPublishPanel({
       </div>
 
       {sortedFlows.length === 0 ? (
-        <div className="rounded-xl border border-white/10 bg-zinc-900/40 p-4 text-sm text-gray-400">
+        <div className="rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-sm text-gray-400">
           Nenhum Flow ainda. Crie no Builder para começar.
         </div>
       ) : (
@@ -141,7 +141,7 @@ export function FlowPublishPanel({
             const isDeleting = deletingId === flow.id
             const canTest = !!flow.meta_flow_id && !!onSelectTestFlowId
             return (
-              <div key={flow.id} className="rounded-xl border border-white/10 bg-zinc-900/40 p-4 space-y-3">
+              <div key={flow.id} className="rounded-xl border border-white/10 bg-zinc-950/40 p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-white truncate">{flow.name}</div>
@@ -171,7 +171,7 @@ export function FlowPublishPanel({
                     size="sm"
                     onClick={() => handlePublish(flow)}
                     disabled={isPublishing}
-                    className="bg-primary-600 hover:bg-primary-500 text-white"
+                    className="bg-emerald-500 text-black hover:bg-emerald-400"
                   >
                     <UploadCloud className={cn('h-4 w-4', isPublishing ? 'animate-pulse' : '')} />
                     {isPublishing ? 'Publicando…' : (status.label === 'Publicado' ? 'Atualizar' : 'Publicar')}
@@ -194,7 +194,7 @@ export function FlowPublishPanel({
                     variant="ghost"
                     onClick={() => setConfirmFlow(flow)}
                     disabled={isDeleting}
-                    className="text-red-300 hover:text-red-200"
+                    className="text-amber-300 hover:text-amber-200"
                   >
                     <Trash2 className="h-4 w-4" />
                     Excluir
@@ -213,7 +213,7 @@ export function FlowPublishPanel({
       )}
 
       <Dialog open={!!confirmFlow} onOpenChange={(open) => !open && setConfirmFlow(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-zinc-900/80 border border-amber-500/20 text-white">
           <DialogHeader>
             <DialogTitle>Excluir flow</DialogTitle>
           </DialogHeader>
@@ -221,13 +221,14 @@ export function FlowPublishPanel({
             Flow: <span className="font-semibold">{confirmFlow?.name}</span>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmFlow(null)}>
+            <Button variant="outline" onClick={() => setConfirmFlow(null)} className="border-white/10 bg-zinc-950/40 text-gray-200 hover:text-white hover:bg-white/5">
               Cancelar
             </Button>
             <Button
               variant="destructive"
               onClick={() => confirmFlow && handleDelete(confirmFlow)}
               disabled={!confirmFlow || deletingId === confirmFlow.id}
+              className="bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15"
             >
               {deletingId === confirmFlow?.id ? 'Excluindo…' : 'Excluir'}
             </Button>

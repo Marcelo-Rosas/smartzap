@@ -51,7 +51,7 @@ specs/001-consolidate-migrations/
 
 A constituição afirma **Turso/LibSQL** como banco “não negociável”, mas o repositório e a operação atual usam **Supabase/Postgres** (com pasta `supabase/`, clientes Supabase e rotas de setup/migrate).
 
-**Decisão:** tratar isso como documentação desatualizada, sem bloquear este plano. **Follow-up recomendado**: atualizar a constituição para refletir Supabase/Postgres (fora do escopo deste feature).
+**Decisão:** este feature fica **bloqueado** até uma emenda constitucional formal alinhar o stack do projeto para **Supabase/Postgres** e permitir tooling de schema em CI/dev. Após a emenda, a implementação pode prosseguir **sem mudança de escopo**.
 
 ## Gates (must-pass)
 
@@ -99,5 +99,5 @@ Escopo de implementação esperado (alto nível):
 ## Post-Design Constitution Re-check
 
 - Nenhuma UI/Hook/Service foi adicionada nesta fase (apenas documentação/contratos), então não houve violação de View/Controller.
-- A divergência Turso vs Supabase permanece como **documentação desatualizada**; não bloqueia a entrega deste plano.
+- A divergência Turso vs Supabase foi tratada via emenda constitucional; este plano segue a constituição atualizada.
 

@@ -40,9 +40,9 @@ import { getPricingBreakdown } from '@/lib/whatsapp-pricing'
 import { useExchangeRate } from '@/hooks/useExchangeRate'
 
 const steps = [
-  { id: 1, label: 'Configuracao' },
-  { id: 2, label: 'Publico' },
-  { id: 3, label: 'Validacao' },
+  { id: 1, label: 'Configuração' },
+  { id: 2, label: 'Público' },
+  { id: 3, label: 'Validação' },
   { id: 4, label: 'Agendamento' },
 ]
 
@@ -366,7 +366,7 @@ export default function CampaignsNewRealPage() {
   const contactFields = [
     { key: 'nome', label: 'Nome' },
     { key: 'telefone', label: 'Telefone' },
-    { key: 'email', label: 'Email' },
+    { key: 'email', label: 'E-mail' },
   ]
   const sampleValues = useMemo(() => {
     const preferredContact = sendToSelected && selectedTestContact ? selectedTestContact : configuredContact
@@ -563,7 +563,7 @@ export default function CampaignsNewRealPage() {
 
       return result
     } catch (error) {
-      setPrecheckError((error as Error)?.message || 'Falha ao validar destinatarios.')
+      setPrecheckError((error as Error)?.message || 'Falha ao validar destinatários.')
       setPrecheckTotals(null)
       setPrecheckResult(null)
       return null
@@ -579,7 +579,7 @@ export default function CampaignsNewRealPage() {
     try {
       const contacts = await resolveAudienceContacts()
       if (!contacts.length) {
-        setLaunchError('Nenhum contato valido para envio.')
+        setLaunchError('Nenhum contato válido para envio.')
         return
       }
 
@@ -622,7 +622,7 @@ export default function CampaignsNewRealPage() {
         }
       } catch (err) {
         // Mantém a UI consistente: falha de pré-check impede disparo.
-        setLaunchError((err as Error)?.message || 'Falha ao validar destinatarios antes do envio.')
+        setLaunchError((err as Error)?.message || 'Falha ao validar destinatários antes do envio.')
         setPrecheckResult(null)
         return
       }
@@ -1142,7 +1142,7 @@ export default function CampaignsNewRealPage() {
     step >= 4
       ? scheduleLabel
       : precheckNeedsFix
-        ? 'Bloqueado (validacao pendente)'
+        ? 'Bloqueado (validação pendente)'
         : 'A definir'
   const combineModeLabel = combineMode === 'or' ? 'Mais alcance' : 'Mais preciso'
   const combineFilters = [...selectedTags, ...selectedCountries, ...selectedStates]
@@ -1259,10 +1259,10 @@ export default function CampaignsNewRealPage() {
                     isStepEnabled
                       ? undefined
                       : item.id === 2
-                        ? 'Complete a configuracao para avancar'
+                        ? 'Complete a configuração para avançar'
                         : item.id === 3
-                          ? 'Complete configuracao e publico para avancar'
-                          : 'Finalize a validacao para avancar'
+                          ? 'Complete configuração e público para avançar'
+                          : 'Finalize a validação para avançar'
                   }
                   className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm transition ${
                     step === item.id
@@ -1464,9 +1464,9 @@ export default function CampaignsNewRealPage() {
                       <Sparkles size={18} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-white">Variaveis do Template</h2>
+                      <h2 className="text-lg font-semibold text-white">Variáveis do Template</h2>
                       <p className="text-sm text-gray-500">
-                        Preencha os valores que serao usados neste template. Esses valores serao iguais para todos os destinatarios.
+                        Preencha os valores que serão usados neste template. Esses valores serão iguais para todos os destinatários.
                       </p>
                     </div>
                   </div>
@@ -1482,7 +1482,7 @@ export default function CampaignsNewRealPage() {
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gray-500">
                           <Eye size={14} />
-                          <span>Variaveis do cabecalho</span>
+                          <span>Variáveis do cabeçalho</span>
                         </div>
                       <div className="space-y-3">
                           {templateVars.header.map((item, index) => (
@@ -1494,7 +1494,7 @@ export default function CampaignsNewRealPage() {
                                 <input
                                   value={item.value}
                                   onChange={(event) => setTemplateVarValue('header', index, event.target.value)}
-                                  placeholder={`Variavel do cabecalho (${item.placeholder})`}
+                                  placeholder={`Variável do cabeçalho (${item.placeholder})`}
                                   className={`w-full rounded-xl border bg-zinc-950/40 px-4 py-2 pr-10 text-sm text-white placeholder:text-gray-600 ${
                                     !item.value.trim() && item.required
                                       ? 'border-amber-400/40'
@@ -1536,7 +1536,7 @@ export default function CampaignsNewRealPage() {
                                       className="flex items-center gap-2"
                                     >
                                       <div className="text-blue-400 font-mono text-[10px] w-3.5 text-center">@</div>
-                                      <span>Email</span>
+                                      <span>E-mail</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-white/10" />
                                     {customFields.length > 0 && (
@@ -1566,7 +1566,7 @@ export default function CampaignsNewRealPage() {
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
-                              {item.required && <span className="text-xs text-amber-300">obrigatorio</span>}
+                              {item.required && <span className="text-xs text-amber-300">obrigatório</span>}
                             </div>
                           ))}
                         </div>
@@ -1577,7 +1577,7 @@ export default function CampaignsNewRealPage() {
                       <div className="space-y-3 border-t border-white/10 pt-4">
                         <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gray-500">
                           <MessageSquare size={14} />
-                          <span>Variaveis do corpo</span>
+                          <span>Variáveis do corpo</span>
                         </div>
                         <div className="space-y-3">
                           {templateVars.body.map((item, index) => (
@@ -1589,7 +1589,7 @@ export default function CampaignsNewRealPage() {
                                 <input
                                   value={item.value}
                                   onChange={(event) => setTemplateVarValue('body', index, event.target.value)}
-                                  placeholder={`Variavel do corpo (${item.placeholder})`}
+                                  placeholder={`Variável do corpo (${item.placeholder})`}
                                   className={`w-full rounded-xl border bg-zinc-950/40 px-4 py-2 pr-10 text-sm text-white placeholder:text-gray-600 ${
                                     !item.value.trim() && item.required
                                       ? 'border-amber-400/40'
@@ -1631,7 +1631,7 @@ export default function CampaignsNewRealPage() {
                                       className="flex items-center gap-2"
                                     >
                                       <div className="text-blue-400 font-mono text-[10px] w-3.5 text-center">@</div>
-                                      <span>Email</span>
+                                      <span>E-mail</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-white/10" />
                                     {customFields.length > 0 && (
@@ -1661,7 +1661,7 @@ export default function CampaignsNewRealPage() {
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
-                              {item.required && <span className="text-xs text-amber-300">obrigatorio</span>}
+                              {item.required && <span className="text-xs text-amber-300">obrigatório</span>}
                             </div>
                           ))}
                         </div>
@@ -1672,7 +1672,7 @@ export default function CampaignsNewRealPage() {
                       <div className="space-y-3 border-t border-white/10 pt-4">
                         <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gray-500">
                           <span className="text-[10px] font-mono text-emerald-200">URL</span>
-                          <span>Variaveis dos botoes</span>
+                          <span>Variáveis dos botões</span>
                         </div>
 
                         <div className="space-y-3">
@@ -1682,7 +1682,7 @@ export default function CampaignsNewRealPage() {
                               <div key={`btn-${b.index}`} className="rounded-xl border border-white/10 bg-zinc-950/30 p-4">
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="text-sm font-semibold text-white">{b.text}</div>
-                                  <div className="text-[10px] uppercase tracking-widest text-gray-500">botao {b.index + 1}</div>
+                                  <div className="text-[10px] uppercase tracking-widest text-gray-500">botão {b.index + 1}</div>
                                 </div>
                                 <div className="mt-3 space-y-2">
                                   {(b.requiredKeys as string[]).map((k) => {
@@ -1695,7 +1695,7 @@ export default function CampaignsNewRealPage() {
                                           <input
                                             value={value}
                                             onChange={(event) => setButtonVarValue(b.index, k, event.target.value)}
-                                            placeholder={`Variavel do botao (${id})`}
+                                            placeholder={`Variável do botão (${id})`}
                                             className={`w-full rounded-xl border bg-zinc-950/40 px-4 py-2 pr-10 text-sm text-white placeholder:text-gray-600 ${
                                               !value.trim() ? 'border-amber-400/40' : 'border-white/10'
                                             }`}
@@ -1735,7 +1735,7 @@ export default function CampaignsNewRealPage() {
                                                 className="flex items-center gap-2"
                                               >
                                                 <div className="text-blue-400 font-mono text-[10px] w-3.5 text-center">@</div>
-                                                <span>Email</span>
+                                                <span>E-mail</span>
                                               </DropdownMenuItem>
                                               <DropdownMenuSeparator className="bg-white/10" />
                                               {customFields.length > 0 && (
@@ -1765,7 +1765,7 @@ export default function CampaignsNewRealPage() {
                                             </DropdownMenuContent>
                                           </DropdownMenu>
                                         </div>
-                                        <span className="text-xs text-amber-300">obrigatorio</span>
+                                        <span className="text-xs text-amber-300">obrigatório</span>
                                       </div>
                                     )
                                   })}
@@ -1787,7 +1787,7 @@ export default function CampaignsNewRealPage() {
                 {collapseAudienceChoice ? (
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <div className="text-xs uppercase tracking-widest text-gray-500">Publico</div>
+                      <div className="text-xs uppercase tracking-widest text-gray-500">Público</div>
                       <div className="mt-1 text-sm font-semibold text-white">
                         {audienceMode === 'todos' && 'Todos'}
                         {audienceMode === 'segmentos' && 'Segmentos'}
@@ -1799,18 +1799,18 @@ export default function CampaignsNewRealPage() {
                       onClick={() => setCollapseAudienceChoice(false)}
                       className="text-xs text-emerald-300"
                     >
-                      Editar publico
+                      Editar público
                     </button>
                   </div>
                 ) : (
                   <>
                     <div className="space-y-1">
-                      <h2 className="text-lg font-semibold text-white">Escolha o publico</h2>
+                      <h2 className="text-lg font-semibold text-white">Escolha o público</h2>
                       <p className="text-sm text-gray-500">Uma decisao rapida antes dos filtros.</p>
                     </div>
                     <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
                       {[
-                        { label: 'Todos', value: 'todos', helper: '221 contatos elegiveis' },
+                        { label: 'Todos', value: 'todos', helper: '221 contatos elegíveis' },
                         { label: 'Segmentos', value: 'segmentos', helper: 'Filtrar por tags, DDI ou UF' },
                         { label: 'Teste', value: 'teste', helper: 'Enviar para contato de teste' },
                       ].map((item) => (
@@ -1842,7 +1842,7 @@ export default function CampaignsNewRealPage() {
                   <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-center">
                       <p className="text-2xl font-semibold text-white">221</p>
-                      <p className="text-xs text-gray-500">Elegiveis</p>
+                      <p className="text-xs text-gray-500">Elegíveis</p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-center">
                       <p className="text-2xl font-semibold text-amber-200">6</p>
@@ -1854,7 +1854,7 @@ export default function CampaignsNewRealPage() {
                     </div>
                   </div>
                   <p className="mt-4 text-xs text-gray-500">
-                    Envio para todos os contatos validos, excluindo opt-out e suprimidos.
+                    Envio para todos os contatos válidos, excluindo opt-out e suprimidos.
                   </p>
                 </div>
               )}
@@ -2147,7 +2147,7 @@ export default function CampaignsNewRealPage() {
                       <label className="text-xs uppercase tracking-widest text-gray-500">Usar outro contato</label>
                       <input
                         className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950/40 px-4 py-3 text-sm text-white placeholder:text-gray-600"
-                        placeholder="Nome, telefone ou email..."
+                        placeholder="Nome, telefone ou e-mail..."
                         value={testContactSearch}
                         onChange={(event) => setTestContactSearch(event.target.value)}
                       />
@@ -2204,7 +2204,7 @@ export default function CampaignsNewRealPage() {
                   </div>
                   <div className="mt-4">
                     <p className="text-xs text-gray-500">
-                      Envio de teste nao consome limite diario. Selecione 1 ou 2 contatos.
+                      Envio de teste não consome limite diário. Selecione 1 ou 2 contatos.
                     </p>
                   </div>
                 </div>
@@ -2216,15 +2216,15 @@ export default function CampaignsNewRealPage() {
             <div className="space-y-6">
               <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
                 <div className="space-y-1">
-                  <h2 className="text-lg font-semibold text-white">Validacao de destinatarios</h2>
-                  <p className="text-sm text-gray-500">Validacao automatica antes do disparo.</p>
+                  <h2 className="text-lg font-semibold text-white">Validação de destinatários</h2>
+                  <p className="text-sm text-gray-500">Validação automática antes do disparo.</p>
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-center">
                     <p className="text-2xl font-semibold text-white">
                       {isPrecheckLoading ? '—' : precheckTotals?.valid ?? '—'}
                     </p>
-                    <p className="text-xs text-gray-500">Validos</p>
+                    <p className="text-xs text-gray-500">Válidos</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-zinc-950/40 p-4 text-center">
                     <p className="text-2xl font-semibold text-amber-300">
@@ -2255,7 +2255,7 @@ export default function CampaignsNewRealPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-white">Corrigir ignorados</p>
                         <p className="text-xs text-gray-500">
-                          Alguns contatos estao sendo ignorados por falta de Nome, Email ou campo personalizado. Corrija e a validacao destrava.
+                          Alguns contatos estão sendo ignorados por falta de Nome, E-mail ou campo personalizado. Corrija e a validação destrava.
                         </p>
                       </div>
                       <div className="flex items-center justify-end gap-2 sm:flex-nowrap">
@@ -2305,14 +2305,14 @@ export default function CampaignsNewRealPage() {
                           <div>
                             <p className="text-sm font-semibold text-white">Aplicar campo personalizado em massa</p>
                             <p className="mt-1 text-xs text-gray-500">
-                              Preenche o campo selecionado para todos os contatos ignorados que estao faltando esse dado.
+                              Preenche o campo selecionado para todos os contatos ignorados que estão faltando esse dado.
                             </p>
                             {(systemMissingCounts.name > 0 || systemMissingCounts.email > 0) && (
                               <p className="mt-2 text-xs text-gray-600">
                                 Obs: {systemMissingCounts.name > 0 ? `${systemMissingCounts.name} faltam Nome` : null}
                                 {systemMissingCounts.name > 0 && systemMissingCounts.email > 0 ? ' e ' : null}
-                                {systemMissingCounts.email > 0 ? `${systemMissingCounts.email} faltam Email` : null}
-                                {' — isso nao e preenchido aqui; use “Corrigir em lote”.'}
+                                {systemMissingCounts.email > 0 ? `${systemMissingCounts.email} faltam E-mail` : null}
+                                {' — isso não é preenchido aqui; use “Corrigir em lote”.'}
                               </p>
                             )}
                           </div>
@@ -2359,7 +2359,7 @@ export default function CampaignsNewRealPage() {
                               Afetados: <span className="text-gray-400">{bulkKey ? (bulkCustomFieldTargets[bulkKey]?.length ?? 0) : 0}</span>
                             </p>
                             <p className="text-[11px] text-gray-600">
-                              Dica: “Aplicar em massa” so resolve campos personalizados. Se algum ignorado pedir Nome/Email, ele aparece no “Corrigir em lote”.
+                              Dica: “Aplicar em massa” só resolve campos personalizados. Se algum ignorado pedir Nome/E-mail, ele aparece no “Corrigir em lote”.
                             </p>
                           </div>
                         </div>
@@ -2432,7 +2432,7 @@ export default function CampaignsNewRealPage() {
               <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold text-white">Agendamento</h2>
-                  <p className="text-sm text-gray-500">Defina se o envio sera agora ou programado.</p>
+                  <p className="text-sm text-gray-500">Defina se o envio será agora ou programado.</p>
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                   <button
@@ -2505,7 +2505,7 @@ export default function CampaignsNewRealPage() {
                       </Dialog.Root>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-widest text-gray-500">Horario</label>
+                      <label className="text-xs uppercase tracking-widest text-gray-500">Horário</label>
                       <DateTimePicker value={scheduleTime} onChange={(value) => setScheduleTime(value)} disabled={scheduleMode !== 'agendar'} />
                     </div>
                   </div>
@@ -2563,16 +2563,16 @@ export default function CampaignsNewRealPage() {
               <div className="text-center text-sm text-gray-400">
                 {step === 1 && !templateSelected && 'Selecione um template para continuar'}
                 {step === 1 && templateSelected && missingTemplateVars > 0 && (
-                  <>Preencha {missingTemplateVars} variavel(is) obrigatoria(s)</>
+                  <>Preencha {missingTemplateVars} variável(is) obrigatória(s)</>
                 )}
                 {step === 1 && templateSelected && missingTemplateVars === 0 && !campaignName.trim() && (
                   <>Defina o nome da campanha</>
                 )}
-                {step === 2 && !isAudienceComplete && 'Selecione um publico valido'}
-                {step === 3 && isPrecheckLoading && 'Validando destinatarios...'}
-                {step === 3 && !isPrecheckLoading && precheckNeedsFix && 'Corrija os ignorados da validacao para continuar'}
-                {step === 3 && !isPrecheckLoading && precheckTotals && (precheckTotals.valid ?? 0) === 0 && 'Nenhum destinatario valido — corrija os ignorados'}
-                {step === 4 && !isScheduleComplete && 'Defina data e horario do agendamento'}
+                {step === 2 && !isAudienceComplete && 'Selecione um público válido'}
+                {step === 3 && isPrecheckLoading && 'Validando destinatários...'}
+                {step === 3 && !isPrecheckLoading && precheckNeedsFix && 'Corrija os ignorados da validação para continuar'}
+                {step === 3 && !isPrecheckLoading && precheckTotals && (precheckTotals.valid ?? 0) === 0 && 'Nenhum destinatário válido — corrija os ignorados'}
+                {step === 4 && !isScheduleComplete && 'Defina data e horário do agendamento'}
                 {canContinue && footerSummary}
               </div>
               <button
@@ -2656,7 +2656,7 @@ export default function CampaignsNewRealPage() {
                 <span className="text-white">{templateSelected ? selectedTemplate?.name || '—' : '—'}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Publico</span>
+                <span className="text-gray-500">Público</span>
                 <span className="text-white">
                   {audienceMode === 'teste'
                     ? `${selectedTestCount || 0} contato(s) de teste`

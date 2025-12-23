@@ -19,9 +19,15 @@ interface MetaTemplate {
   status: string
   language: string
   category: string
-  parameter_format?: 'positional' | 'named'
+  parameter_format?: string
   components: MetaTemplateComponent[]
   last_updated_time: string
+}
+
+const normalizeParameterFormat = (value?: string) => {
+  if (!value) return 'positional'
+  const normalized = String(value).toLowerCase()
+  return normalized === 'named' ? 'named' : 'positional'
 }
 
 // Helper to fetch ALL templates from Meta API (with pagination)
@@ -59,13 +65,14 @@ async function fetchTemplatesFromMeta(businessAccountId: string, accessToken: st
 
   // Transform Meta format to our App format
   return allTemplates.map((t: MetaTemplate) => {
+    const parameterFormat = normalizeParameterFormat(t.parameter_format)
     const bodyComponent = t.components.find((c: MetaTemplateComponent) => c.type === 'BODY')
     const specHash = createHash('sha256')
       .update(JSON.stringify({
         name: t.name,
         language: t.language,
         category: t.category,
-        parameter_format: t.parameter_format || 'positional',
+        parameter_format: parameterFormat,
         components: t.components,
       }))
       .digest('hex')
@@ -76,7 +83,7 @@ async function fetchTemplatesFromMeta(businessAccountId: string, accessToken: st
       category: t.category,
       language: t.language,
       status: t.status,
-      parameterFormat: t.parameter_format || 'positional',
+      parameterFormat,
       specHash,
       fetchedAt: new Date().toISOString(),
       content: bodyComponent?.text || 'No content',

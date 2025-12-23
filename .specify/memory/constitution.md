@@ -12,8 +12,8 @@ Page (thin) → Hook (controller) → Service (API client) → API Route → Dat
 
 - **Pages** (`app/(dashboard)/*/page.tsx`): Wire hooks to views only; no business logic
 - **Hooks** (`hooks/use*.ts`): React Query + UI state management; controller pattern
-- **Services** (`services/*Service.turso.ts`): API calls to Next.js routes
-- **API Routes** (`app/api/*/route.ts`): Database operations via Turso
+- **Services** (`services/*Service.ts`): API calls to Next.js routes
+- **API Routes** (`app/api/*/route.ts`): Database operations via Supabase/Postgres (server-side/admin)
 - **Rationale**: Separation of concerns enables testability, reusability, and maintainability
 
 ### II. View-Controller Separation
@@ -34,6 +34,14 @@ All backend interactions MUST go through API routes:
 - **Error handling**: Use `lib/whatsapp-errors.ts` mapping for WhatsApp API errors
 - **Phone formatting**: All phone numbers MUST use E.164 format via `lib/phone-formatter.ts`
 - **Rationale**: API layer provides security boundary, caching opportunities, and consistent error handling
+
+**Exception — Tooling/CI (schema & migrations)**
+Scripts de validação e manutenção de schema (ex.: parity check, snapshots de catálogo, `pg_dump`, comparação de migrations) **PODEM** usar conexão direta ao banco **somente** em ambiente de desenvolvimento/CI, desde que:
+
+1. sejam **read-only por padrão**;
+2. qualquer operação DDL/DML exija **confirmação explícita** e **guard-rails** de “DB não vazia”;
+3. não sejam executados pelo frontend nem por hooks/components;
+4. outputs sejam gravados apenas em `tmp/` (artefatos locais), não em produção.
 
 ### IV. Type Safety
 
@@ -64,7 +72,7 @@ The following stack decisions are NON-NEGOTIABLE without constitutional amendmen
 | Framework | Next.js | 16+ | App Router, Turbopack |
 | UI | React | 19+ | React Compiler enabled |
 | Styling | Tailwind CSS | 4+ | `primary-*` theme, `glass-panel` |
-| Database | Turso | LibSQL | Via `lib/turso.ts` |
+| Database | Supabase | Postgres | Via `lib/supabase.ts` e/ou `lib/db.ts` |
 | Cache | Upstash Redis | REST API | Via `lib/redis.ts` |
 | Queues | Upstash QStash | Workflows | For campaign processing |
 | Icons | lucide-react | Latest | Exclusive icon library |
@@ -103,7 +111,7 @@ types.ts               # Central type definitions
 
 - **Files**: `kebab-case.ts` for utilities, `PascalCase.tsx` for components
 - **Hooks**: `use[Feature].ts` or `use[Feature]Controller.ts`
-- **Services**: `[feature]Service.turso.ts`
+- **Services**: `[feature]Service.ts`
 - **Views**: `[Feature]View.tsx` or `[Feature]ListView.tsx`
 
 ## Governance

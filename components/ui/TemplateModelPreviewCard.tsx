@@ -15,6 +15,12 @@ export type ModelPreviewButton = {
     | 'CATALOG'
     | 'MPM'
     | 'VOICE_CALL'
+    | 'EXTENSION'
+    | 'ORDER_DETAILS'
+    | 'POSTBACK'
+    | 'REMINDER'
+    | 'SEND_LOCATION'
+    | 'SPM'
   text: string
 }
 
@@ -54,19 +60,19 @@ export function TemplateModelPreviewCard(props: {
   }
 
   return (
-    <div className="glass-panel rounded-xl p-0 overflow-hidden">
-      <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden">
+      <div className="px-6 py-4 flex items-center justify-between border-b border-white/10">
         <div className="text-sm font-semibold text-white">{title}</div>
         <button
           type="button"
-          className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-white/10 bg-zinc-900 hover:bg-white/5 text-gray-200"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
           title="Visualizar"
         >
           <Play className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="p-4">
+      <div className="p-6">
         {/* “telefone” */}
         <div className="rounded-2xl border border-white/10 bg-zinc-950/40 p-3">
           <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#efeae2]">

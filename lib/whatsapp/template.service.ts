@@ -140,6 +140,8 @@ export class TemplateService {
 
         const components: any[] = []
         const parameterFormat = (input as any).parameter_format === 'named' ? 'named' : 'positional'
+        const metaParameterFormat = parameterFormat === 'named' ? 'NAMED' : 'POSITIONAL'
+        const isNamed = parameterFormat === 'named'
 
         // A. Header
         if (input.header) {
@@ -148,13 +150,29 @@ export class TemplateService {
                 format: input.header.format as any
             }
 
-            if (input.header.format === 'TEXT' && input.header.text) {
-                headerComponent.text = parameterFormat === 'named' ? input.header.text : this.renumberVariables(input.header.text)
-                const varCount = this.extractVariables(headerComponent.text)
-                if (varCount > 0) {
-                    // Use provided example vars or generate generic ones
-                    const examples = input.header.example?.header_text || Array(varCount).fill('Exemplo')
-                    headerComponent.example = { header_text: examples }
+            if (input.header.format === 'TEXT') {
+                const headerText = String(input.header.text || '').trim()
+                if (!headerText) {
+                    throw new Error('Cabeçalho de texto exige um valor.')
+                }
+
+                headerComponent.text = isNamed ? headerText : this.renumberVariables(headerText)
+
+                if (isNamed) {
+                    const names = this.extractNamedVariables(headerComponent.text)
+                    if (names.length > 0) {
+                        const provided = input.header.example?.header_text_named_params
+                        headerComponent.example = {
+                            header_text_named_params: this.buildNamedParamsExamples(names, provided, undefined, 'Exemplo')
+                        }
+                    }
+                } else {
+                    const varCount = this.extractVariables(headerComponent.text)
+                    if (varCount > 0) {
+                        // Use provided example vars or generate generic ones
+                        const examples = input.header.example?.header_text || Array(varCount).fill('Exemplo')
+                        headerComponent.example = { header_text: examples }
+                    }
                 }
             } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(input.header.format)) {
                 // Media headers require an example handle
@@ -165,10 +183,18 @@ export class TemplateService {
             components.push(headerComponent)
         }
 
-        // B. Body (or Content)
+        // B. Limited Time Offer
+        if (input.limited_time_offer) {
+            components.push({
+                type: 'LIMITED_TIME_OFFER',
+                limited_time_offer: input.limited_time_offer
+            })
+        }
+
+        // C. Body (or Content)
         let bodyText = input.body?.text || input.content || ''
         if (bodyText) {
-            bodyText = parameterFormat === 'named' ? bodyText : this.renumberVariables(bodyText)
+            bodyText = isNamed ? bodyText : this.renumberVariables(bodyText)
             const bodyComponent: MetaBodyComponent = {
                 type: 'BODY',
                 text: bodyText
@@ -178,22 +204,37 @@ export class TemplateService {
                 bodyComponent.add_security_recommendation = input.add_security_recommendation
             }
 
-            const varCount = this.extractVariables(bodyText)
-            if (varCount > 0) {
-                let exampleValues: string[] = []
-                if (input.exampleVariables && input.exampleVariables.length > 0) {
-                    // Ensure we provide exactly as many examples as variables
-                    exampleValues = input.exampleVariables.slice(0, varCount)
-                    // If we still don't have enough, pad with placeholders
-                    while (exampleValues.length < varCount) {
-                        exampleValues.push(`Valor${exampleValues.length + 1}`)
+            if (isNamed) {
+                const names = this.extractNamedVariables(bodyText)
+                if (names.length > 0) {
+                    const provided = input.body?.example?.body_text_named_params
+                    bodyComponent.example = {
+                        body_text_named_params: this.buildNamedParamsExamples(
+                            names,
+                            provided,
+                            input.exampleVariables,
+                            'Valor'
+                        )
                     }
-                } else {
-                    exampleValues = Array.from({ length: varCount }, (_, i) => `Valor${i + 1}`)
                 }
+            } else {
+                const varCount = this.extractVariables(bodyText)
+                if (varCount > 0) {
+                    let exampleValues: string[] = []
+                    if (input.exampleVariables && input.exampleVariables.length > 0) {
+                        // Ensure we provide exactly as many examples as variables
+                        exampleValues = input.exampleVariables.slice(0, varCount)
+                        // If we still don't have enough, pad with placeholders
+                        while (exampleValues.length < varCount) {
+                            exampleValues.push(`Valor${exampleValues.length + 1}`)
+                        }
+                    } else {
+                        exampleValues = Array.from({ length: varCount }, (_, i) => `Valor${i + 1}`)
+                    }
 
-                const finalBodyExamples = input.body?.example?.body_text || [exampleValues]
-                bodyComponent.example = { body_text: finalBodyExamples }
+                    const finalBodyExamples = input.body?.example?.body_text || [exampleValues]
+                    bodyComponent.example = { body_text: finalBodyExamples }
+                }
             }
             components.push(bodyComponent)
         }
@@ -207,7 +248,7 @@ export class TemplateService {
             throw new Error('Use apenas BODY ou CAROUSEL (não ambos) para o mesmo template.')
         }
 
-        // C. Footer
+        // D. Footer
         if (input.footer && input.footer.text) {
             const footerComponent: any = {
                 type: 'FOOTER',
@@ -221,7 +262,7 @@ export class TemplateService {
             components.push(footerComponent)
         }
 
-        // D. Buttons
+        // E. Buttons
         if (input.buttons && input.buttons.length > 0) {
             const validButtons: MetaButton[] = []
 
@@ -258,7 +299,7 @@ export class TemplateService {
             }
         }
 
-        // E. Carousel
+        // F. Carousel
         if (hasCarousel) {
             const carouselComponent: MetaCarouselComponent = {
                 type: 'CAROUSEL',
@@ -267,20 +308,12 @@ export class TemplateService {
             components.push(carouselComponent)
         }
 
-        // F. Limited Time Offer
-        if (input.limited_time_offer) {
-            components.push({
-                type: 'LIMITED_TIME_OFFER',
-                limited_time_offer: input.limited_time_offer
-            })
-        }
-
         const payload: any = {
             name: input.name,
             language: input.language,
             category: input.category,
             // Meta expects this field when using named placeholders; harmless for positional when omitted, but we send for explicitness.
-            parameter_format: parameterFormat,
+            parameter_format: metaParameterFormat,
             components: components
         }
 
@@ -397,6 +430,15 @@ export class TemplateService {
             }
         }
 
+        if (['EXTENSION', 'ORDER_DETAILS', 'POSTBACK', 'REMINDER', 'SEND_LOCATION', 'SPM'].includes(btn.type)) {
+            return {
+                type: btn.type,
+                ...(btn.text ? { text: btn.text } : {}),
+                ...(btn.action ? { action: btn.action } : {}),
+                ...(btn.payload ? { payload: btn.payload } : {}),
+            } as MetaButton
+        }
+
         throw new Error(`Tipo de botão não suportado: ${String(btn.type)}`)
     }
 
@@ -456,6 +498,41 @@ export class TemplateService {
 
         const unique = new Set(all.map(m => m.replace(/\{\{|\}\}/g, '')))
         return unique.size
+    }
+
+    private extractNamedVariables(text: string): string[] {
+        const matches = text.match(/\{\{([^}]+)\}\}/g) || []
+        const seen = new Set<string>()
+        const names: string[] = []
+        for (const match of matches) {
+            const token = match.replace(/\{\{|\}\}/g, '').trim()
+            if (!/^[a-z][a-z0-9_]*$/.test(token)) continue
+            if (!seen.has(token)) {
+                seen.add(token)
+                names.push(token)
+            }
+        }
+        return names
+    }
+
+    private buildNamedParamsExamples(
+        names: string[],
+        provided?: Array<{ param_name: string; example: string }>,
+        fallbackValues?: Array<string | undefined>,
+        fallbackPrefix = 'Valor'
+    ): Array<{ param_name: string; example: string }> {
+        const providedMap = new Map<string, string>()
+        for (const item of provided || []) {
+            if (!item?.param_name) continue
+            providedMap.set(String(item.param_name), String(item.example || '').trim())
+        }
+
+        return names.map((name, idx) => {
+            const providedExample = providedMap.get(name)
+            const fallback = fallbackValues?.[idx]
+            const example = providedExample || String(fallback || '').trim() || `${fallbackPrefix}${idx + 1}`
+            return { param_name: name, example }
+        })
     }
 
     private renumberVariables(text: string): string {

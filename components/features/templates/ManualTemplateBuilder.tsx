@@ -16,6 +16,7 @@ import {
   ExternalLink,
   CornerDownLeft,
   GripVertical,
+  Loader2,
   X,
 } from 'lucide-react'
 import {
@@ -37,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { flowsService } from '@/services/flowsService'
 
@@ -54,6 +56,12 @@ type ButtonType =
   | 'CATALOG'
   | 'MPM'
   | 'VOICE_CALL'
+  | 'EXTENSION'
+  | 'ORDER_DETAILS'
+  | 'POSTBACK'
+  | 'REMINDER'
+  | 'SEND_LOCATION'
+  | 'SPM'
 
 function normalizeButtons(input: any[]): any[] {
   const list = Array.isArray(input) ? input : []
@@ -90,6 +98,8 @@ function joinPhone(country: string, number: string): string {
   return `${c}${n}`
 }
 
+const allowedHeaderFormats = new Set<HeaderFormat>(['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'])
+
 function newButtonForType(type: ButtonType): any {
   if (type === 'URL') return { type, text: '', url: 'https://' }
   if (type === 'PHONE_NUMBER') return { type, text: '', phone_number: '' }
@@ -123,6 +133,93 @@ function variableCount(text: string): number {
   const matches = text.match(/\{\{[^}]+\}\}/g) || []
   const unique = new Set(matches.map(m => m.replace(/\{\{|\}\}/g, '')))
   return unique.size
+}
+
+function variableOccurrences(text: string): number {
+  const matches = text.match(/\{\{[^}]+\}\}/g) || []
+  return matches.length
+}
+
+function extractPlaceholderTokens(text: string): string[] {
+  const matches = text.match(/\{\{\s*([^}]+)\s*\}\}/g) || []
+  return matches.map(m => m.replace(/\{\{|\}\}/g, '').trim())
+}
+
+function missingPositionalTokens(tokens: string[]): number[] {
+  const numbers = tokens.filter((t) => /^\d+$/.test(t)).map((t) => Number(t)).filter((n) => n >= 1)
+  if (!numbers.length) return []
+  const max = Math.max(...numbers)
+  const set = new Set(numbers)
+  const missing: number[] = []
+  for (let i = 1; i <= max; i += 1) {
+    if (!set.has(i)) missing.push(i)
+  }
+  return missing
+}
+
+function validateNamedTokens(text: string) {
+  const tokens = extractPlaceholderTokens(text)
+  const invalid = tokens.filter(t => !/^[a-z][a-z0-9_]*$/.test(t))
+  const counts = new Map<string, number>()
+  for (const token of tokens) counts.set(token, (counts.get(token) || 0) + 1)
+  const duplicates = Array.from(counts.entries())
+    .filter(([, count]) => count > 1)
+    .map(([token]) => token)
+  return { invalid, duplicates }
+}
+
+function validateCarouselSpec(carousel: any): string[] {
+  if (!carousel) return []
+  const errors: string[] = []
+  const cards = Array.isArray(carousel.cards) ? carousel.cards : null
+  if (!cards) {
+    errors.push('Carousel precisa de uma lista "cards".')
+    return errors
+  }
+  if (cards.length < 2 || cards.length > 10) {
+    errors.push('Carousel precisa ter entre 2 e 10 cards.')
+  }
+  cards.forEach((card: any, index: number) => {
+    const components = Array.isArray(card?.components) ? card.components : []
+    const header = components.find((c: any) => String(c?.type || '').toUpperCase() === 'HEADER')
+    const body = components.find((c: any) => String(c?.type || '').toUpperCase() === 'BODY')
+    if (!header) errors.push(`Card ${index + 1}: header é obrigatório.`)
+    if (header) {
+      const format = String(header?.format || '').toUpperCase()
+      if (format !== 'IMAGE' && format !== 'VIDEO') {
+        errors.push(`Card ${index + 1}: header deve ser IMAGE ou VIDEO.`)
+      }
+    }
+    if (!body) errors.push(`Card ${index + 1}: body é obrigatório.`)
+    const buttonComponent = components.find((c: any) => String(c?.type || '').toUpperCase() === 'BUTTONS')
+    const buttonCount = Array.isArray(buttonComponent?.buttons) ? buttonComponent.buttons.length : 0
+    if (buttonCount > 2) {
+      errors.push(`Card ${index + 1}: máximo de 2 botões.`)
+    }
+  })
+  return errors
+}
+
+function textHasEdgeParameter(text: string): { starts: boolean; ends: boolean } {
+  const trimmed = text.trim()
+  if (!trimmed) return { starts: false, ends: false }
+  const starts = /^\{\{\s*[^}]+\s*\}\}/.test(trimmed)
+  const ends = /\{\{\s*[^}]+\s*\}\}$/.test(trimmed)
+  return { starts, ends }
+}
+
+function stripAllPlaceholders(text: string): string {
+  return text.replace(/\{\{[^}]+\}\}/g, '')
+}
+
+function sanitizePlaceholdersByMode(text: string, mode: 'positional' | 'named'): string {
+  return text.replace(/\{\{\s*([^}]+)\s*\}\}/g, (raw, token) => {
+    const trimmed = String(token || '').trim()
+    if (mode === 'positional') {
+      return /^\d+$/.test(trimmed) ? `{{${trimmed}}}` : ''
+    }
+    return /^[a-z][a-z0-9_]*$/.test(trimmed) ? `{{${trimmed}}}` : ''
+  })
 }
 
 function nextPositionalVariable(text: string): number {
@@ -162,6 +259,10 @@ function defaultBodyExamples(text: string): string[][] | undefined {
   return [row]
 }
 
+const panelClass = 'rounded-2xl border border-white/10 bg-zinc-900/60 shadow-[0_12px_30px_rgba(0,0,0,0.35)]'
+const panelPadding = 'p-6'
+const panelCompactPadding = 'p-4'
+
 function Preview({ spec }: { spec: Spec }) {
   const header = spec.header
   const bodyText = spec.body?.text || ''
@@ -183,19 +284,19 @@ function Preview({ spec }: { spec: Spec }) {
   })()
 
   return (
-    <div className="glass-panel rounded-xl p-0 overflow-hidden">
-      <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
+    <div className={`${panelClass} overflow-hidden`}>
+      <div className="px-6 py-4 flex items-center justify-between border-b border-white/10">
         <div className="text-sm font-semibold text-white">Prévia do modelo</div>
         <button
           type="button"
-          className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-white/10 bg-zinc-900 hover:bg-white/5 text-gray-200"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
           title="Visualizar"
         >
           <Play className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="p-4">
+      <div className="p-6">
         {/* “telefone” */}
         <div className="rounded-2xl border border-white/10 bg-zinc-950/40 p-3">
           <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#efeae2]">
@@ -266,13 +367,18 @@ export function ManualTemplateBuilder({
   id,
   initialSpec,
   onSpecChange,
+  onFinish,
+  isFinishing,
 }: {
   id: string
   initialSpec: unknown
   onSpecChange: (spec: unknown) => void
+  onFinish?: () => void
+  isFinishing?: boolean
 }) {
   const [spec, setSpec] = React.useState<Spec>(() => ensureBaseSpec(initialSpec))
   const [showDebug, setShowDebug] = React.useState(false)
+  const [step, setStep] = React.useState(1)
 
   const flowsQuery = useQuery({
     queryKey: ['flows'],
@@ -298,6 +404,7 @@ export function ManualTemplateBuilder({
   const headerTextRef = React.useRef<HTMLInputElement | null>(null)
   const bodyRef = React.useRef<HTMLTextAreaElement | null>(null)
   const footerRef = React.useRef<HTMLInputElement | null>(null)
+  const lastSanitizeRef = React.useRef(0)
 
   React.useEffect(() => {
     setSpec(ensureBaseSpec(initialSpec))
@@ -335,23 +442,55 @@ export function ManualTemplateBuilder({
     })
   }
 
+  const notifySanitized = () => {
+    const now = Date.now()
+    if (now - lastSanitizeRef.current < 1500) return
+    lastSanitizeRef.current = now
+    toast.message('Removemos variáveis inválidas automaticamente.')
+  }
+
   const header: any = spec.header
   const buttons: any[] = Array.isArray(spec.buttons) ? spec.buttons : []
 
   const maxButtons = 10
   const maxButtonText = 25
+  const isAuthCategory = String(spec.category || '') === 'AUTHENTICATION'
+  const isLimitedTimeOffer = Boolean(spec.limited_time_offer)
+  const allowedButtonTypes = new Set<ButtonType>(
+    isAuthCategory
+      ? ['OTP']
+      : [
+          'QUICK_REPLY',
+          'URL',
+          'PHONE_NUMBER',
+          'COPY_CODE',
+          'FLOW',
+          'VOICE_CALL',
+          'CATALOG',
+          'MPM',
+          'EXTENSION',
+          'ORDER_DETAILS',
+          'POSTBACK',
+          'REMINDER',
+          'SEND_LOCATION',
+          'SPM',
+        ],
+  )
   const counts = {
     total: buttons.length,
     url: countButtonsByType(buttons, 'URL'),
     phone: countButtonsByType(buttons, 'PHONE_NUMBER'),
     copyCode: countButtonsByType(buttons, 'COPY_CODE'),
+    otp: countButtonsByType(buttons, 'OTP'),
   }
 
   const canAddButtonType = (type: ButtonType): { ok: boolean; reason?: string } => {
+    if (!allowedButtonTypes.has(type)) return { ok: false, reason: 'Tipo não permitido para esta categoria.' }
     if (counts.total >= maxButtons) return { ok: false, reason: 'Limite de 10 botões atingido.' }
     if (type === 'URL' && counts.url >= 2) return { ok: false, reason: 'Limite de 2 botões de URL.' }
     if (type === 'PHONE_NUMBER' && counts.phone >= 1) return { ok: false, reason: 'Limite de 1 botão de telefone.' }
     if (type === 'COPY_CODE' && counts.copyCode >= 1) return { ok: false, reason: 'Limite de 1 botão de copiar código.' }
+    if (type === 'OTP' && counts.otp >= 1) return { ok: false, reason: 'Limite de 1 botão OTP.' }
     return { ok: true }
   }
 
@@ -363,13 +502,8 @@ export function ManualTemplateBuilder({
 
   const variableMode: 'positional' | 'named' = spec.parameter_format || 'positional'
 
-  const addVariable = (target: 'header' | 'body' | 'footer') => {
-    const currentText =
-      target === 'header'
-        ? String(header?.text || '')
-        : target === 'footer'
-          ? String(spec.footer?.text || '')
-          : String(spec.body?.text || '')
+  const addVariable = (target: 'header' | 'body') => {
+    const currentText = target === 'header' ? String(header?.text || '') : String(spec.body?.text || '')
 
     const placeholder = (() => {
       if (variableMode === 'positional') {
@@ -381,29 +515,25 @@ export function ManualTemplateBuilder({
       if (!name) return null
       const trimmed = name.trim()
       if (!trimmed) return null
+      if (!/^[a-z][a-z0-9_]*$/.test(trimmed)) {
+        window.alert('Nome inválido. Use minúsculas, números e underscore (ex: first_name).')
+        return null
+      }
+      if (currentText.includes(`{{${trimmed}}}`)) {
+        window.alert('Esse nome de variável já foi usado neste campo.')
+        return null
+      }
       return `{{${trimmed}}}`
     })()
 
     if (!placeholder) return
 
     if (target === 'header') {
+      if (variableOccurrences(currentText) >= 1) return
       const el = headerTextRef.current
       const start = el?.selectionStart ?? currentText.length
       const { value, nextPos } = insertAt(currentText, start, placeholder)
       updateHeader({ ...(header || { format: 'TEXT' }), format: 'TEXT', text: value, example: header?.example ?? null })
-      requestAnimationFrame(() => {
-        if (!el) return
-        el.focus()
-        el.setSelectionRange(nextPos, nextPos)
-      })
-      return
-    }
-
-    if (target === 'footer') {
-      const el = footerRef.current
-      const start = el?.selectionStart ?? currentText.length
-      const { value, nextPos } = insertAt(currentText, start, placeholder)
-      updateFooter({ ...(spec.footer || {}), text: value })
       requestAnimationFrame(() => {
         if (!el) return
         el.focus()
@@ -450,288 +580,453 @@ export function ManualTemplateBuilder({
   const headerTextCount = headerText.length
   const bodyTextCount = bodyText.length
   const footerTextCount = footerText.length
+  const bodyMaxLength = isLimitedTimeOffer ? 600 : 1024
+  const headerVariableCount = headerType === 'TEXT' ? variableOccurrences(headerText) : 0
+  const isHeaderVariableValid = headerVariableCount <= 1
+  const headerLengthExceeded = headerType === 'TEXT' && headerTextCount > 60
+  const headerTextMissing = headerEnabled && headerType === 'TEXT' && !headerText.trim()
+  const bodyLengthExceeded = bodyTextCount > bodyMaxLength
+  const footerLengthExceeded = Boolean(spec.footer) && footerTextCount > 60
+  const isHeaderFormatValid = !headerEnabled || headerType === 'NONE' || allowedHeaderFormats.has(headerType as HeaderFormat)
+  const footerHasVariables = variableOccurrences(footerText) > 0
+  const headerEdgeParameter = headerType === 'TEXT' ? textHasEdgeParameter(headerText) : { starts: false, ends: false }
+  const bodyEdgeParameter = textHasEdgeParameter(bodyText)
+  const positionalHeaderInvalid =
+    variableMode === 'positional' && headerType === 'TEXT'
+      ? extractPlaceholderTokens(headerText).filter((t) => !/^\d+$/.test(t) || Number(t) < 1)
+      : []
+  const positionalBodyInvalid =
+    variableMode === 'positional'
+      ? extractPlaceholderTokens(bodyText).filter((t) => !/^\d+$/.test(t) || Number(t) < 1)
+      : []
+  const positionalHeaderMissing =
+    variableMode === 'positional' && headerType === 'TEXT'
+      ? missingPositionalTokens(extractPlaceholderTokens(headerText))
+      : []
+  const positionalBodyMissing =
+    variableMode === 'positional'
+      ? missingPositionalTokens(extractPlaceholderTokens(bodyText))
+      : []
+  const hasMissingPositional = positionalHeaderMissing.length > 0 || positionalBodyMissing.length > 0
+  const hasInvalidPositional = positionalHeaderInvalid.length > 0 || positionalBodyInvalid.length > 0 || hasMissingPositional
+  const namedHeaderChecks = variableMode === 'named' && headerType === 'TEXT' ? validateNamedTokens(headerText) : null
+  const namedBodyChecks = variableMode === 'named' ? validateNamedTokens(bodyText) : null
+  const namedFooterChecks = variableMode === 'named' ? validateNamedTokens(footerText) : null
+  const hasInvalidNamed =
+    (namedHeaderChecks?.invalid.length || 0) > 0 ||
+    (namedBodyChecks?.invalid.length || 0) > 0 ||
+    (namedFooterChecks?.invalid.length || 0) > 0
+  const hasDuplicateNamed =
+    (namedHeaderChecks?.duplicates.length || 0) > 0 ||
+    (namedBodyChecks?.duplicates.length || 0) > 0 ||
+    (namedFooterChecks?.duplicates.length || 0) > 0
+  const hasLengthErrors = headerLengthExceeded || bodyLengthExceeded || footerLengthExceeded
+  const ltoHeaderInvalid =
+    isLimitedTimeOffer && headerEnabled && headerType !== 'IMAGE' && headerType !== 'VIDEO'
+  const ltoFooterInvalid = isLimitedTimeOffer && Boolean(spec.footer)
+  const copyCodeExamples = buttons
+    .filter((b) => b?.type === 'COPY_CODE')
+    .map((b) => {
+      const value = Array.isArray(b?.example) ? b.example[0] : b?.example
+      return String(value || '').trim()
+    })
+  const ltoCopyCodeMissing = isLimitedTimeOffer && (copyCodeExamples.length === 0 || copyCodeExamples.some((c) => !c))
+  const ltoCopyCodeTooLong = isLimitedTimeOffer && copyCodeExamples.some((c) => c.length > 15)
+  const limitedTimeOfferTextMissing = Boolean(spec.limited_time_offer) && !String(spec.limited_time_offer?.text || '').trim()
+
+  const invalidButtonTypes = buttons.filter((b) => b?.type && !allowedButtonTypes.has(b.type)).map((b) => String(b?.type || ''))
+  const buttonErrors: string[] = []
+  if (counts.total > maxButtons) buttonErrors.push('Máximo de 10 botões no total.')
+  if (counts.url > 2) buttonErrors.push('Máximo de 2 botões de URL.')
+  if (counts.phone > 1) buttonErrors.push('Máximo de 1 botão de telefone.')
+  if (counts.copyCode > 1) buttonErrors.push('Máximo de 1 botão de copiar código.')
+  if (isAuthCategory && counts.otp !== 1) buttonErrors.push('Authentication exige 1 botão OTP.')
+  if (!isAuthCategory && counts.otp > 0) buttonErrors.push('OTP é permitido apenas em Authentication.')
+  if (invalidButtonTypes.length) buttonErrors.push(`Botões não permitidos: ${invalidButtonTypes.join(', ')}.`)
+  if (ltoCopyCodeMissing) buttonErrors.push('Limited Time Offer exige botão COPY_CODE com exemplo.')
+  if (ltoCopyCodeTooLong) buttonErrors.push('Limited Time Offer: código do COPY_CODE deve ter até 15 caracteres.')
+
+  const carouselErrors = validateCarouselSpec(spec.carousel)
+  const limitedTimeOfferTextTooLong = Boolean(spec.limited_time_offer) && String(spec.limited_time_offer?.text || '').length > 16
+  const limitedTimeOfferCategoryInvalid = Boolean(spec.limited_time_offer) && String(spec.category || '') !== 'MARKETING'
+  const isButtonsValid =
+    buttonErrors.length === 0 &&
+    carouselErrors.length === 0 &&
+    !limitedTimeOfferTextMissing &&
+    !limitedTimeOfferTextTooLong &&
+    !limitedTimeOfferCategoryInvalid
 
   const canShowMediaSample = headerType === 'IMAGE' || headerType === 'VIDEO' || headerType === 'DOCUMENT'
+  const nameValue = String(spec.name || '').trim()
+  const isNameValid = Boolean(nameValue) && /^[a-z0-9_]+$/.test(nameValue)
+  const isConfigComplete = isNameValid && Boolean(spec.category) && Boolean(spec.language) && Boolean(spec.parameter_format)
+  const isContentComplete =
+    bodyText.trim().length > 0 &&
+    isHeaderVariableValid &&
+    isHeaderFormatValid &&
+    !headerTextMissing &&
+    !hasInvalidNamed &&
+    !hasDuplicateNamed &&
+    !hasInvalidPositional &&
+    !hasLengthErrors &&
+    !ltoHeaderInvalid &&
+    !ltoFooterInvalid &&
+    !footerHasVariables &&
+    !headerEdgeParameter.starts &&
+    !headerEdgeParameter.ends &&
+    !bodyEdgeParameter.starts &&
+    !bodyEdgeParameter.ends
+  const canContinue = step === 1 ? isConfigComplete : step === 2 ? isContentComplete : isButtonsValid && isContentComplete
+  const steps = [
+    { id: 1, label: 'Configuracao' },
+    { id: 2, label: 'Conteudo' },
+    { id: 3, label: 'Botoes' },
+  ]
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start">
       <div className="space-y-6">
-        {/* CONFIG (equivalente ao passo anterior na Meta, mas mantemos aqui) */}
-        <div className="glass-panel rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-base font-semibold text-white">Nome e idioma do modelo</div>
-              <div className="text-xs text-gray-400 mt-0.5">Defina como o modelo será identificado.</div>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">Nome</label>
-              <Input
-                value={spec.name || ''}
-                onChange={(e) => update({ name: e.target.value })}
-                className="bg-zinc-900 border-white/10 text-white"
-              />
-              <p className="text-xs text-gray-500">Apenas <span className="font-mono">a-z 0-9 _</span></p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">Categoria</label>
-              <Select value={spec.category} onValueChange={(v) => update({ category: v })}>
-                <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MARKETING">Marketing</SelectItem>
-                  <SelectItem value="UTILITY">Utilidade</SelectItem>
-                  <SelectItem value="AUTHENTICATION">Autenticação</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">Idioma</label>
-              <Select value={spec.language} onValueChange={(v) => update({ language: v })}>
-                <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pt_BR">pt_BR</SelectItem>
-                  <SelectItem value="en_US">en_US</SelectItem>
-                  <SelectItem value="es_ES">es_ES</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="mt-3 text-xs text-gray-500">
-            ID do rascunho: <span className="font-mono">{id}</span>
-          </div>
+        <div className="grid grid-cols-3 gap-3">
+          {steps.map((item) => {
+            const isStepEnabled =
+              item.id === 1 ||
+              (item.id === 2 && isConfigComplete) ||
+              (item.id === 3 && isConfigComplete && isContentComplete)
+            return (
+              <button
+                key={item.id}
+                type="button"
+                disabled={!isStepEnabled}
+                onClick={() => {
+                  if (!isStepEnabled) return
+                  setStep(item.id)
+                }}
+                className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                  step === item.id
+                    ? 'border-emerald-400/40 bg-emerald-500/10 text-white'
+                    : 'border-white/10 bg-zinc-900/40 text-gray-400'
+                } ${!isStepEnabled ? 'cursor-not-allowed opacity-40' : 'hover:text-white'}`}
+              >
+                <span
+                  className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-semibold leading-none ${
+                    step === item.id
+                      ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
+                      : 'border-white/10 text-gray-400'
+                  }`}
+                >
+                  {item.id}
+                </span>
+                <span className="text-xs uppercase tracking-widest">{item.label}</span>
+              </button>
+            )
+          })}
         </div>
 
-        {/* CONTEÚDO (como na Meta) */}
-        <div className="glass-panel rounded-xl p-5 space-y-4">
-          <div>
-            <div className="text-base font-semibold text-white">Conteúdo</div>
-            <div className="text-xs text-gray-400 mt-1">
-              Adicione um cabeçalho, corpo de texto e rodapé para o seu modelo. A Meta analisa variáveis e conteúdo antes da aprovação.
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">Tipo de variável</label>
-              <Select
-                value={variableMode}
-                onValueChange={(v) => update({ parameter_format: v })}
-              >
-                <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="positional">Número</SelectItem>
-                  <SelectItem value="named">Nome (avançado)</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* CONFIG (equivalente ao passo anterior na Meta, mas mantemos aqui) */}
+        {step === 1 && (
+          <div className={`${panelClass} ${panelPadding} min-h-140`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-base font-semibold text-white">Nome e idioma do modelo</div>
+                <div className="text-xs text-gray-400 mt-0.5">Defina como o modelo será identificado.</div>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-300">Amostra de mídia <span className="text-gray-500">• Opcional</span></label>
-              <Select
-                value={canShowMediaSample ? 'handle' : 'none'}
-                onValueChange={() => {
-                  // A seleção real é determinada pelo tipo de Header.
-                  // Mantemos o controle aqui para espelhar a UX da Meta.
-                }}
-                disabled={!canShowMediaSample}
-              >
-                <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white disabled:opacity-60">
-                  <SelectValue placeholder="Nenhum" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  <SelectItem value="handle">Usar header_handle</SelectItem>
-                </SelectContent>
-              </Select>
-              {!canShowMediaSample ? (
-                <div className="text-xs text-gray-500">Selecione um cabeçalho de mídia (Imagem/Vídeo/Documento) para ativar.</div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* CABEÇALHO */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Cabeçalho <span className="text-xs text-gray-500 font-normal">• Opcional</span></div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-300">Tipo</label>
+                <label className="text-xs font-medium text-gray-300">Nome</label>
+                <Input
+                  value={spec.name || ''}
+                  onChange={(e) => update({ name: e.target.value })}
+                  className={`bg-zinc-950/40 text-white ${
+                    isNameValid ? 'border-white/10' : 'border-amber-400/40'
+                  }`}
+                />
+                <p className="text-xs text-gray-500">Apenas <span className="font-mono">a-z 0-9 _</span></p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-300">Categoria</label>
                 <Select
-                  value={headerType}
+                  value={spec.category}
                   onValueChange={(v) => {
-                    const format = v as HeaderFormat | 'NONE'
-                    if (format === 'NONE') {
-                      update({ header: null })
-                      return
+                    const nextCategory = String(v)
+                    const nextAllowedButtons = new Set<ButtonType>(
+                      nextCategory === 'AUTHENTICATION'
+                        ? ['OTP']
+                        : [
+                            'QUICK_REPLY',
+                            'URL',
+                            'PHONE_NUMBER',
+                            'COPY_CODE',
+                            'FLOW',
+                            'VOICE_CALL',
+                            'CATALOG',
+                            'MPM',
+                            'EXTENSION',
+                            'ORDER_DETAILS',
+                            'POSTBACK',
+                            'REMINDER',
+                            'SEND_LOCATION',
+                            'SPM',
+                          ],
+                    )
+                    const nextButtons = buttons.filter((b) => nextAllowedButtons.has(b?.type as ButtonType))
+                    if (nextCategory === 'AUTHENTICATION' && nextButtons.length === 0) {
+                      nextButtons.push(newButtonForType('OTP'))
                     }
-                    if (format === 'TEXT') updateHeader({ format: 'TEXT', text: '', example: null })
-                    else if (format === 'LOCATION') updateHeader({ format: 'LOCATION' })
-                    else updateHeader({ format, example: { header_handle: [''] } })
+                    update({
+                      category: v,
+                      buttons: normalizeButtons(nextButtons),
+                      limited_time_offer: nextCategory === 'MARKETING' ? spec.limited_time_offer : null,
+                    })
                   }}
                 >
-                  <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
-                    <SelectValue />
+                  <SelectTrigger className="w-full bg-zinc-950/40 border-white/10 text-white">
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="NONE">Nenhum</SelectItem>
-                    <SelectItem value="TEXT">Texto</SelectItem>
-                    <SelectItem value="IMAGE">Imagem</SelectItem>
-                    <SelectItem value="VIDEO">Vídeo</SelectItem>
-                    <SelectItem value="DOCUMENT">Documento</SelectItem>
-                    <SelectItem value="LOCATION">Localização</SelectItem>
+                    <SelectItem value="MARKETING">Marketing</SelectItem>
+                    <SelectItem value="UTILITY">Utilidade</SelectItem>
+                    <SelectItem value="AUTHENTICATION">Autenticação</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-300">Idioma</label>
+                <Select value={spec.language} onValueChange={(v) => update({ language: v })}>
+                  <SelectTrigger className="w-full bg-zinc-950/40 border-white/10 text-white">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pt_BR">pt_BR</SelectItem>
+                    <SelectItem value="en_US">en_US</SelectItem>
+                    <SelectItem value="es_ES">es_ES</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-300">Tipo de variável</label>
+                <Select
+                  value={variableMode}
+                  onValueChange={(v) => {
+                    const mode = v as 'positional' | 'named'
+                    const next: Partial<Spec> = { parameter_format: mode }
+                    if (headerType === 'TEXT') {
+                      const cleanedHeader = sanitizePlaceholdersByMode(headerText, mode)
+                      if (cleanedHeader !== headerText) {
+                        next.header = { ...(header || { format: 'TEXT' }), format: 'TEXT', text: cleanedHeader, example: header?.example ?? null }
+                        notifySanitized()
+                      }
+                    }
+                    const cleanedBody = sanitizePlaceholdersByMode(bodyText, mode)
+                    if (cleanedBody !== bodyText) {
+                      const example = defaultBodyExamples(cleanedBody)
+                      next.body = { ...(spec.body || {}), text: cleanedBody, example: example ? { body_text: example } : undefined }
+                      notifySanitized()
+                    }
+                    if (spec.footer?.text) {
+                      const cleanedFooter = stripAllPlaceholders(footerText)
+                      if (cleanedFooter !== footerText) {
+                        next.footer = { ...(spec.footer || {}), text: cleanedFooter }
+                        notifySanitized()
+                      }
+                    }
+                    update(next)
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-zinc-950/40 border-white/10 text-white">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="positional">Número</SelectItem>
+                    <SelectItem value="named">Nome (avançado)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {headerType === 'TEXT' ? (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-gray-300">Cabeçalho</label>
-                  <div className="text-xs text-gray-500">{headerTextCount}/60</div>
-                </div>
-                <Input
-                  ref={headerTextRef as any}
-                  value={headerText}
-                  onChange={(e) => updateHeader({ ...header, format: 'TEXT', text: e.target.value })}
-                  className="bg-zinc-900 border-white/10 text-white"
-                  placeholder="Adicione uma pequena linha de texto (opcional)"
-                  maxLength={60}
-                />
-                <div className="flex items-center justify-end">
+            <div className="mt-3 text-xs text-gray-500">
+              ID do rascunho: <span className="font-mono">{id}</span>
+            </div>
+          </div>
+        )}
+
+        {/* CONTEÚDO (como na Meta) */}
+        {step === 2 && (
+          <div className={`${panelClass} p-5 space-y-2 min-h-140`}>
+            <div>
+              <div className="text-base font-semibold text-white">Conteúdo</div>
+              <div className="text-xs text-gray-400 mt-1">
+                Adicione um cabeçalho, corpo de texto e rodapé para o seu modelo. A Meta analisa variáveis e conteúdo antes da aprovação.
+              </div>
+            </div>
+            {hasInvalidNamed || hasDuplicateNamed || hasInvalidPositional || footerHasVariables ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-white/10 bg-zinc-950/40 hover:bg-white/5 h-8 px-3 text-xs"
+                  onClick={() => {
+                    const next: Partial<Spec> = {}
+                    if (headerType === 'TEXT') {
+                      const cleanedHeader = sanitizePlaceholdersByMode(headerText, variableMode)
+                      if (cleanedHeader !== headerText) {
+                        next.header = { ...(header || { format: 'TEXT' }), format: 'TEXT', text: cleanedHeader, example: header?.example ?? null }
+                        notifySanitized()
+                      }
+                    }
+                    const cleanedBody = sanitizePlaceholdersByMode(bodyText, variableMode)
+                    if (cleanedBody !== bodyText) {
+                      const example = defaultBodyExamples(cleanedBody)
+                      next.body = { ...(spec.body || {}), text: cleanedBody, example: example ? { body_text: example } : undefined }
+                      notifySanitized()
+                    }
+                    if (spec.footer?.text) {
+                      const cleanedFooter = stripAllPlaceholders(footerText)
+                      if (cleanedFooter !== footerText) {
+                        next.footer = { ...(spec.footer || {}), text: cleanedFooter }
+                        notifySanitized()
+                      }
+                    }
+                    if (Object.keys(next).length) update(next)
+                  }}
+                >
+                  Limpar variáveis inválidas
+                </Button>
+              </div>
+            ) : null}
+
+            {/* CABEÇALHO */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-white">Cabeçalho <span className="text-xs text-gray-500 font-normal">• Opcional</span></div>
+                {headerType !== 'NONE' ? (
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => addVariable('header')}
-                    className="h-8 px-2 text-gray-300 hover:bg-white/5"
+                    className="h-8 px-2 text-gray-400 hover:text-white hover:bg-white/5"
+                    onClick={() => update({ header: null })}
                   >
-                    <Plus className="w-4 h-4" />
-                    Adicionar variável
+                    Remover
+                  </Button>
+                ) : null}
+              </div>
+
+              {headerType === 'NONE' ? (
+                <div className="mt-2 flex items-center justify-between rounded-xl border border-white/10 bg-zinc-950/40 p-2">
+                  <div className="text-xs text-gray-400">Sem cabeçalho configurado.</div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-white/10 bg-zinc-950/40 hover:bg-white/5"
+                    onClick={() =>
+                      updateHeader(
+                        isLimitedTimeOffer
+                          ? { format: 'IMAGE', example: { header_handle: [''] } }
+                          : { format: 'TEXT', text: '', example: null },
+                      )
+                    }
+                  >
+                    Adicionar cabeçalho
                   </Button>
                 </div>
-              </div>
-            ) : null}
+              ) : (
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-gray-300">Tipo</label>
+                    <Select
+                      value={headerType}
+                      onValueChange={(v) => {
+                        const format = v as HeaderFormat | 'NONE'
+                        if (format === 'NONE') {
+                          update({ header: null })
+                          return
+                        }
+                        if (format === 'TEXT') updateHeader({ format: 'TEXT', text: '', example: null })
+                        else if (format === 'LOCATION') updateHeader({ format: 'LOCATION' })
+                        else updateHeader({ format, example: { header_handle: [''] } })
+                      }}
+                    >
+                      <SelectTrigger className="w-full bg-zinc-950/40 border-white/10 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NONE">Nenhum</SelectItem>
+                        <SelectItem value="TEXT" disabled={isLimitedTimeOffer}>Texto</SelectItem>
+                        <SelectItem value="IMAGE">Imagem</SelectItem>
+                        <SelectItem value="VIDEO">Vídeo</SelectItem>
+                        <SelectItem value="DOCUMENT" disabled={isLimitedTimeOffer}>Documento</SelectItem>
+                        <SelectItem value="LOCATION" disabled={isLimitedTimeOffer}>Localização</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
 
-            {canShowMediaSample ? (
-              <div className="mt-3 space-y-2">
-                <label className="text-xs font-medium text-gray-300">header_handle (mídia)</label>
-                <Input
-                  value={header?.example?.header_handle?.[0] || ''}
-                  onChange={(e) => updateHeader({ ...header, example: { ...(header.example || {}), header_handle: [e.target.value] } })}
-                  className="bg-zinc-900 border-white/10 text-white"
-                  placeholder="Cole o header_handle (upload resumable: em breve)"
-                />
-                <p className="text-xs text-gray-500">
-                  Por enquanto, cole o <span className="font-mono">header_handle</span>. Depois a gente automatiza o upload.
-                </p>
-              </div>
-            ) : null}
-          </div>
+              {!isHeaderFormatValid ? (
+                <p className="text-xs text-amber-300 mt-1">Tipo de cabeçalho inválido para templates.</p>
+              ) : null}
+              {ltoHeaderInvalid ? (
+                <p className="text-xs text-amber-300 mt-1">Limited Time Offer aceita apenas cabeçalho IMAGE ou VIDEO.</p>
+              ) : null}
 
-          {/* CORPO */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Corpo</div>
-              <div className="text-xs text-gray-500">{bodyTextCount}/1024</div>
-            </div>
-
-            <div className="mt-2 rounded-xl border border-white/10 bg-zinc-950">
-              <div className="p-2">
-                <Textarea
-                  ref={bodyRef as any}
-                  value={bodyText}
-                  onChange={(e) => {
-                    const text = e.target.value
-                    const example = defaultBodyExamples(text)
-                    update({ body: { ...(spec.body || {}), text, example: example ? { body_text: example } : undefined } })
-                  }}
-                  className="bg-transparent border-none text-white min-h-36 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  placeholder="Digite o texto do corpo (obrigatório)"
-                  maxLength={1024}
-                />
-              </div>
-
-              <div className="flex items-center gap-1 px-2 py-2 border-t border-white/10">
-                <Button type="button" variant="ghost" onClick={() => applyBodyFormat('bold')} className="h-8 px-2 text-gray-200 hover:bg-white/5">
-                  <Bold className="w-4 h-4" />
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => applyBodyFormat('italic')} className="h-8 px-2 text-gray-200 hover:bg-white/5">
-                  <Italic className="w-4 h-4" />
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => applyBodyFormat('strike')} className="h-8 px-2 text-gray-200 hover:bg-white/5">
-                  <Strikethrough className="w-4 h-4" />
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => applyBodyFormat('code')} className="h-8 px-2 text-gray-200 hover:bg-white/5">
-                  <Code className="w-4 h-4" />
-                </Button>
-
-                <div className="flex-1" />
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => addVariable('body')}
-                  className="h-8 px-2 text-gray-200 hover:bg-white/5"
-                >
-                  <Plus className="w-4 h-4" />
-                  Adicionar variável
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-2 text-xs text-gray-500">
-              Variáveis detectadas: <span className="font-mono">{variableCount(bodyText)}</span>
-              {!bodyText.trim() ? <span className="text-amber-300"> • O corpo é obrigatório.</span> : null}
-            </div>
-          </div>
-
-          {/* RODAPÉ */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Rodapé <span className="text-xs text-gray-500 font-normal">• Opcional</span></div>
-              <div className="text-xs text-gray-500">{footerTextCount}/60</div>
-            </div>
-
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  className="border-white/10 bg-zinc-900 hover:bg-white/5"
-                  onClick={() => updateFooter(spec.footer ? null : { text: '' })}
-                >
-                  {spec.footer ? 'Remover rodapé' : 'Adicionar rodapé'}
-                </Button>
-              </div>
-
-              {spec.footer ? (
-                <div className="space-y-2">
+              {headerType === 'TEXT' ? (
+                <div className="mt-1 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-gray-300">Texto</label>
+                    <div className="text-xs text-gray-500">{headerTextCount}/60</div>
+                  </div>
                   <Input
-                    ref={footerRef as any}
-                    value={footerText}
-                    onChange={(e) => updateFooter({ ...(spec.footer || {}), text: e.target.value })}
-                    className="bg-zinc-900 border-white/10 text-white"
-                    placeholder="Inserir texto"
+                    ref={headerTextRef as any}
+                    value={headerText}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      const cleaned = sanitizePlaceholdersByMode(raw, variableMode)
+                      if (cleaned !== raw) notifySanitized()
+                      updateHeader({ ...header, format: 'TEXT', text: cleaned })
+                    }}
+                    className="bg-zinc-950/40 border-white/10 text-white"
+                    placeholder="Texto do cabeçalho"
                     maxLength={60}
                   />
+                  {headerLengthExceeded ? (
+                    <p className="text-xs text-amber-300">Cabeçalho excede 60 caracteres.</p>
+                  ) : null}
+                  {!isHeaderVariableValid ? (
+                    <p className="text-xs text-amber-300">O cabeçalho permite apenas 1 variável.</p>
+                  ) : null}
+                  {namedHeaderChecks?.invalid.length ? (
+                    <p className="text-xs text-amber-300">Variáveis devem ser minúsculas com underscore (ex: first_name).</p>
+                  ) : null}
+                  {namedHeaderChecks?.duplicates.length ? (
+                    <p className="text-xs text-amber-300">Nomes de variável no cabeçalho devem ser únicos.</p>
+                  ) : null}
+                  {headerTextMissing ? (
+                    <p className="text-xs text-amber-300">Cabeçalho de texto é obrigatório.</p>
+                  ) : null}
+                  {positionalHeaderInvalid.length ? (
+                    <p className="text-xs text-amber-300">
+                      No modo numérico, use apenas {'{{1}}'}, {'{{2}}'}…
+                    </p>
+                  ) : null}
+                  {positionalHeaderMissing.length ? (
+                    <p className="text-xs text-amber-300">
+                      Sequência posicional deve começar em {'{{1}}'} e não ter buracos.
+                    </p>
+                  ) : null}
+                  {headerEdgeParameter.starts || headerEdgeParameter.ends ? (
+                    <p className="text-xs text-amber-300">O cabeçalho não pode começar nem terminar com variável.</p>
+                  ) : null}
                   <div className="flex items-center justify-end">
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => addVariable('footer')}
-                      className="h-8 px-2 text-gray-300 hover:bg-white/5"
+                      onClick={() => addVariable('header')}
+                      disabled={headerVariableCount >= 1}
+                      className="h-8 px-2 text-gray-300 hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent"
                     >
                       <Plus className="w-4 h-4" />
                       Adicionar variável
@@ -739,11 +1034,161 @@ export function ManualTemplateBuilder({
                   </div>
                 </div>
               ) : null}
+
+              {canShowMediaSample ? (
+                <div className="mt-2 space-y-2">
+                  <label className="text-xs font-medium text-gray-300">header_handle (mídia)</label>
+                  <Input
+                    value={header?.example?.header_handle?.[0] || ''}
+                    onChange={(e) => updateHeader({ ...header, example: { ...(header.example || {}), header_handle: [e.target.value] } })}
+                    className="bg-zinc-950/40 border-white/10 text-white"
+                    placeholder="Cole o header_handle (upload resumable: em breve)"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Por enquanto, cole o <span className="font-mono">header_handle</span>. Depois a gente automatiza o upload.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            {/* CORPO */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-white">Corpo</div>
+                <div className="text-xs text-gray-500">{bodyTextCount}/{bodyMaxLength}</div>
+              </div>
+
+              <div className="mt-2 rounded-xl border border-white/10 bg-zinc-950/40">
+                <div className="p-2">
+                  <Textarea
+                    ref={bodyRef as any}
+                    value={bodyText}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      const cleaned = sanitizePlaceholdersByMode(raw, variableMode)
+                      if (cleaned !== raw) notifySanitized()
+                      const example = defaultBodyExamples(cleaned)
+                      update({ body: { ...(spec.body || {}), text: cleaned, example: example ? { body_text: example } : undefined } })
+                    }}
+                    className="bg-transparent border-none text-white min-h-24 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    placeholder="Digite o corpo (obrigatório)"
+                    maxLength={bodyMaxLength}
+                  />
+                </div>
+
+                <div className="flex items-center gap-1 px-2 py-1.5 border-t border-white/10">
+                  <Button type="button" variant="ghost" onClick={() => applyBodyFormat('bold')} className="h-7 px-2 text-gray-200 hover:bg-white/5">
+                    <Bold className="w-4 h-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => applyBodyFormat('italic')} className="h-7 px-2 text-gray-200 hover:bg-white/5">
+                    <Italic className="w-4 h-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => applyBodyFormat('strike')} className="h-7 px-2 text-gray-200 hover:bg-white/5">
+                    <Strikethrough className="w-4 h-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => applyBodyFormat('code')} className="h-7 px-2 text-gray-200 hover:bg-white/5">
+                    <Code className="w-4 h-4" />
+                  </Button>
+
+                  <div className="flex-1" />
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => addVariable('body')}
+                    className="h-7 px-2 text-gray-200 hover:bg-white/5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar variável
+                  </Button>
+                </div>
+              </div>
+
+              {namedBodyChecks?.invalid.length ? (
+                <div className="mt-2 text-xs text-amber-300">Use apenas minúsculas e underscore nas variáveis do corpo.</div>
+              ) : null}
+              {namedBodyChecks?.duplicates.length ? (
+                <div className="mt-2 text-xs text-amber-300">Nomes de variável no corpo devem ser únicos.</div>
+              ) : null}
+              {positionalBodyInvalid.length ? (
+                <div className="mt-2 text-xs text-amber-300">
+                  No modo numérico, use apenas {'{{1}}'}, {'{{2}}'}…
+                </div>
+              ) : null}
+              {positionalBodyMissing.length ? (
+                <div className="mt-2 text-xs text-amber-300">
+                  Sequência posicional deve começar em {'{{1}}'} e não ter buracos.
+                </div>
+              ) : null}
+              {bodyLengthExceeded ? (
+                <div className="mt-2 text-xs text-amber-300">Corpo excede {bodyMaxLength} caracteres.</div>
+              ) : null}
+              {bodyEdgeParameter.starts || bodyEdgeParameter.ends ? (
+                <div className="mt-2 text-xs text-amber-300">O corpo não pode começar nem terminar com variável.</div>
+              ) : null}
+              {!bodyText.trim() ? (
+                <div className="mt-2 text-xs text-amber-300">O corpo é obrigatório.</div>
+              ) : null}
+            </div>
+
+            {/* RODAPÉ */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-white">Rodapé <span className="text-xs text-gray-500 font-normal">• Opcional</span></div>
+                <div className="text-xs text-gray-500">{footerTextCount}/60</div>
+              </div>
+
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="border-white/10 bg-zinc-950/40 hover:bg-white/5 h-8 px-3"
+                    disabled={isLimitedTimeOffer && !spec.footer}
+                    onClick={() => updateFooter(spec.footer ? null : { text: '' })}
+                  >
+                    {spec.footer ? 'Remover rodapé' : 'Adicionar rodapé'}
+                  </Button>
+                </div>
+
+                {isLimitedTimeOffer ? (
+                  <div className="text-xs text-amber-300">Limited Time Offer não permite rodapé.</div>
+                ) : null}
+
+                {spec.footer ? (
+                  <div className="space-y-2">
+                    <Input
+                      ref={footerRef as any}
+                      value={footerText}
+                      onChange={(e) => {
+                        const nextText = stripAllPlaceholders(e.target.value)
+                        if (nextText !== e.target.value) notifySanitized()
+                        updateFooter({ ...(spec.footer || {}), text: nextText })
+                      }}
+                      className="bg-zinc-950/40 border-white/10 text-white"
+                      placeholder="Inserir texto"
+                      maxLength={60}
+                    />
+                    {footerLengthExceeded ? (
+                      <div className="text-xs text-amber-300">Rodapé excede 60 caracteres.</div>
+                    ) : null}
+                    {footerHasVariables ? (
+                      <div className="text-xs text-amber-300">Rodapé não permite variáveis.</div>
+                    ) : null}
+                    {namedFooterChecks?.invalid.length ? (
+                      <div className="text-xs text-amber-300">Use apenas minúsculas e underscore nas variáveis do rodapé.</div>
+                    ) : null}
+                    {namedFooterChecks?.duplicates.length ? (
+                      <div className="text-xs text-amber-300">Nomes de variável no rodapé devem ser únicos.</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="glass-panel rounded-xl p-5 space-y-4">
+        {step === 3 && (
+          <div className={`${panelClass} ${panelPadding} space-y-4 min-h-140`}>
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-white">Botões <span className="text-xs text-gray-500 font-normal">• Opcional</span></div>
@@ -753,7 +1198,7 @@ export function ManualTemplateBuilder({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="border-white/10 bg-zinc-900 hover:bg-white/5"
+                  className="border-white/10 bg-zinc-950/40 hover:bg-white/5"
                 >
                   <Plus className="w-4 h-4" />
                   Adicionar botão
@@ -839,6 +1284,48 @@ export function ManualTemplateBuilder({
                     >
                       Chamada de voz
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => addButton('ORDER_DETAILS')}
+                      disabled={!canAddButtonType('ORDER_DETAILS').ok}
+                      className="cursor-pointer hover:bg-white/5 focus:bg-white/5"
+                    >
+                      Detalhes do pedido
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => addButton('SPM')}
+                      disabled={!canAddButtonType('SPM').ok}
+                      className="cursor-pointer hover:bg-white/5 focus:bg-white/5"
+                    >
+                      SPM
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => addButton('SEND_LOCATION')}
+                      disabled={!canAddButtonType('SEND_LOCATION').ok}
+                      className="cursor-pointer hover:bg-white/5 focus:bg-white/5"
+                    >
+                      Enviar localização
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => addButton('REMINDER')}
+                      disabled={!canAddButtonType('REMINDER').ok}
+                      className="cursor-pointer hover:bg-white/5 focus:bg-white/5"
+                    >
+                      Lembrete
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => addButton('POSTBACK')}
+                      disabled={!canAddButtonType('POSTBACK').ok}
+                      className="cursor-pointer hover:bg-white/5 focus:bg-white/5"
+                    >
+                      Postback
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => addButton('EXTENSION')}
+                      disabled={!canAddButtonType('EXTENSION').ok}
+                      className="cursor-pointer hover:bg-white/5 focus:bg-white/5"
+                    >
+                      Extensão
+                    </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               </DropdownMenuContent>
@@ -883,7 +1370,7 @@ export function ManualTemplateBuilder({
                                     next[idx] = { ...b, text: clampText(e.target.value, maxButtonText) }
                                     updateButtons(next)
                                   }}
-                                  className="h-11 bg-zinc-900 border-white/10 text-white pr-16"
+                                  className="h-11 bg-zinc-950/40 border-white/10 text-white pr-16"
                                   maxLength={maxButtonText}
                                   placeholder="Quick Reply"
                                 />
@@ -940,9 +1427,24 @@ export function ManualTemplateBuilder({
                                     value={type}
                                     onValueChange={(v) => {
                                       const t = v as ButtonType
+                                      if (!allowedButtonTypes.has(t)) return
                                       const next = [...buttons]
                                       next[idx] = { type: t }
-                                      if (t === 'QUICK_REPLY' || t === 'URL' || t === 'PHONE_NUMBER' || t === 'FLOW' || t === 'CATALOG' || t === 'MPM' || t === 'VOICE_CALL') {
+                                      if (
+                                        t === 'QUICK_REPLY' ||
+                                        t === 'URL' ||
+                                        t === 'PHONE_NUMBER' ||
+                                        t === 'FLOW' ||
+                                        t === 'CATALOG' ||
+                                        t === 'MPM' ||
+                                        t === 'VOICE_CALL' ||
+                                        t === 'EXTENSION' ||
+                                        t === 'ORDER_DETAILS' ||
+                                        t === 'POSTBACK' ||
+                                        t === 'REMINDER' ||
+                                        t === 'SEND_LOCATION' ||
+                                        t === 'SPM'
+                                      ) {
                                         next[idx].text = ''
                                       }
                                       if (t === 'URL') next[idx].url = 'https://'
@@ -953,18 +1455,24 @@ export function ManualTemplateBuilder({
                                       updateButtons(next)
                                     }}
                                   >
-                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                    <SelectTrigger className="h-11 w-full bg-zinc-950/40 border-white/10 text-white">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="URL">Acessar o site</SelectItem>
-                                      <SelectItem value="PHONE_NUMBER">Ligar</SelectItem>
-                                      <SelectItem value="COPY_CODE">Copiar código da oferta</SelectItem>
-                                      <SelectItem value="FLOW">Concluir flow</SelectItem>
-                                      <SelectItem value="VOICE_CALL">Ligar no WhatsApp</SelectItem>
-                                      <SelectItem value="CATALOG">Catálogo</SelectItem>
-                                      <SelectItem value="MPM">MPM</SelectItem>
-                                      <SelectItem value="OTP">OTP</SelectItem>
+                                      <SelectItem value="URL" disabled={!allowedButtonTypes.has('URL')}>Acessar o site</SelectItem>
+                                      <SelectItem value="PHONE_NUMBER" disabled={!allowedButtonTypes.has('PHONE_NUMBER')}>Ligar</SelectItem>
+                                      <SelectItem value="COPY_CODE" disabled={!allowedButtonTypes.has('COPY_CODE')}>Copiar código da oferta</SelectItem>
+                                      <SelectItem value="FLOW" disabled={!allowedButtonTypes.has('FLOW')}>Concluir flow</SelectItem>
+                                      <SelectItem value="VOICE_CALL" disabled={!allowedButtonTypes.has('VOICE_CALL')}>Ligar no WhatsApp</SelectItem>
+                                      <SelectItem value="CATALOG" disabled={!allowedButtonTypes.has('CATALOG')}>Catálogo</SelectItem>
+                                      <SelectItem value="MPM" disabled={!allowedButtonTypes.has('MPM')}>MPM</SelectItem>
+                                      <SelectItem value="ORDER_DETAILS" disabled={!allowedButtonTypes.has('ORDER_DETAILS')}>Detalhes do pedido</SelectItem>
+                                      <SelectItem value="SPM" disabled={!allowedButtonTypes.has('SPM')}>SPM</SelectItem>
+                                      <SelectItem value="SEND_LOCATION" disabled={!allowedButtonTypes.has('SEND_LOCATION')}>Enviar localização</SelectItem>
+                                      <SelectItem value="REMINDER" disabled={!allowedButtonTypes.has('REMINDER')}>Lembrete</SelectItem>
+                                      <SelectItem value="POSTBACK" disabled={!allowedButtonTypes.has('POSTBACK')}>Postback</SelectItem>
+                                      <SelectItem value="EXTENSION" disabled={!allowedButtonTypes.has('EXTENSION')}>Extensão</SelectItem>
+                                      <SelectItem value="OTP" disabled={!allowedButtonTypes.has('OTP')}>OTP</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -979,7 +1487,7 @@ export function ManualTemplateBuilder({
                                         next[idx] = { ...b, text: clampText(e.target.value, maxButtonText) }
                                         updateButtons(next)
                                       }}
-                                      className="h-11 bg-zinc-900 border-white/10 text-white pr-16"
+                                      className="h-11 bg-zinc-950/40 border-white/10 text-white pr-16"
                                       maxLength={maxButtonText}
                                       placeholder={type === 'URL' ? 'Visualizar' : 'Texto'}
                                     />
@@ -1019,7 +1527,7 @@ export function ManualTemplateBuilder({
                                       updateButtons(next)
                                     }}
                                   >
-                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                    <SelectTrigger className="h-11 w-full bg-zinc-950/40 border-white/10 text-white">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1038,7 +1546,7 @@ export function ManualTemplateBuilder({
                                       next[idx] = { ...b, url: e.target.value }
                                       updateButtons(next)
                                     }}
-                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    className="h-11 bg-zinc-950/40 border-white/10 text-white"
                                     placeholder="https://www.exemplo.com"
                                   />
                                 </div>
@@ -1054,7 +1562,7 @@ export function ManualTemplateBuilder({
                                           next[idx] = { ...b, example: [e.target.value] }
                                           updateButtons(next)
                                         }}
-                                        className="h-11 bg-zinc-900 border-white/10 text-white"
+                                        className="h-11 bg-zinc-950/40 border-white/10 text-white"
                                         placeholder="Exemplo 1"
                                       />
                                     </div>
@@ -1081,7 +1589,7 @@ export function ManualTemplateBuilder({
                                       updateButtons(next)
                                     }}
                                   >
-                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                    <SelectTrigger className="h-11 w-full bg-zinc-950/40 border-white/10 text-white">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1100,7 +1608,7 @@ export function ManualTemplateBuilder({
                                       next[idx] = { ...b, phone_number: joinPhone(country, e.target.value) }
                                       updateButtons(next)
                                     }}
-                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    className="h-11 bg-zinc-950/40 border-white/10 text-white"
                                     placeholder="(11) 99999-7777"
                                   />
                                 </div>
@@ -1109,19 +1617,20 @@ export function ManualTemplateBuilder({
                           }
 
                           if (type === 'COPY_CODE') {
+                            const maxCodeLength = isLimitedTimeOffer ? 15 : 20
                             const code = String((Array.isArray(b?.example) ? b.example[0] : b?.example) || '')
                             return (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                                 <div className="space-y-1">
-                                  <div className="text-xs font-medium text-gray-300">Código da oferta</div>
+                                  <div className="text-xs font-medium text-gray-300">Código da oferta (máx {maxCodeLength})</div>
                                   <Input
                                     value={code}
                                     onChange={(e) => {
                                       const next = [...buttons]
-                                      next[idx] = { ...b, example: clampText(e.target.value, 20) }
+                                      next[idx] = { ...b, example: clampText(e.target.value, maxCodeLength) }
                                       updateButtons(next)
                                     }}
-                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    className="h-11 bg-zinc-950/40 border-white/10 text-white"
                                     placeholder="1234"
                                   />
                                 </div>
@@ -1150,7 +1659,7 @@ export function ManualTemplateBuilder({
                                     }}
                                     disabled={flowsQuery.isLoading || publishedFlows.length === 0}
                                   >
-                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                    <SelectTrigger className="h-11 w-full bg-zinc-950/40 border-white/10 text-white">
                                       <SelectValue
                                         placeholder={
                                           flowsQuery.isLoading
@@ -1194,7 +1703,7 @@ export function ManualTemplateBuilder({
                                       next[idx] = { ...b, flow_id: e.target.value }
                                       updateButtons(next)
                                     }}
-                                    className="h-11 bg-zinc-900 border-white/10 text-white"
+                                    className="h-11 bg-zinc-950/40 border-white/10 text-white"
                                     placeholder="Usar existente"
                                   />
                                   <div className="text-[11px] text-gray-500">
@@ -1211,7 +1720,7 @@ export function ManualTemplateBuilder({
                                       updateButtons(next)
                                     }}
                                   >
-                                    <SelectTrigger className="h-11 w-full bg-zinc-900 border-white/10 text-white">
+                                    <SelectTrigger className="h-11 w-full bg-zinc-950/40 border-white/10 text-white">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1252,7 +1761,7 @@ export function ManualTemplateBuilder({
                       })}
 
                       <div className="text-xs text-gray-500">
-                        Regras: URL máx 2, Ligar máx 1, Copiar código máx 1; Respostas rápidas ficam agrupadas.
+                        Regras: URL máx 2, Ligar máx 1, Copiar código máx 1, OTP máx 1; Respostas rápidas ficam agrupadas.
                       </div>
                     </div>
                   </div>
@@ -1266,9 +1775,18 @@ export function ManualTemplateBuilder({
               Você já atingiu o limite de {maxButtons} botões.
             </div>
           ) : null}
-        </div>
+          {buttonErrors.length ? (
+            <div className="text-xs text-amber-300 space-y-1">
+              {buttonErrors.map((err) => (
+                <div key={err}>{err}</div>
+              ))}
+            </div>
+          ) : null}
+          </div>
+        )}
 
-        <div className="glass-panel rounded-xl p-4">
+        {step === 3 && (
+          <div className={`${panelClass} ${panelCompactPadding}`}>
           <details>
             <summary className="cursor-pointer list-none select-none flex items-center justify-between">
               <div>
@@ -1285,8 +1803,28 @@ export function ManualTemplateBuilder({
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
-                      className="border-white/10 bg-zinc-900 hover:bg-white/5"
-                      onClick={() => update({ limited_time_offer: spec.limited_time_offer ? null : { text: '', has_expiration: true } })}
+                      className="border-white/10 bg-zinc-950/40 hover:bg-white/5"
+                      onClick={() => {
+                        if (spec.limited_time_offer) {
+                          update({ limited_time_offer: null })
+                          return
+                        }
+
+                        const next: Partial<Spec> = { limited_time_offer: { text: '', has_expiration: true } }
+                        if (spec.footer) next.footer = null
+                        if (header?.format && !['IMAGE', 'VIDEO'].includes(String(header.format))) {
+                          next.header = null
+                        }
+
+                        update(next)
+
+                        if (spec.footer) {
+                          toast.message('Limited Time Offer não permite rodapé. Removemos o rodapé.')
+                        }
+                        if (header?.format && !['IMAGE', 'VIDEO'].includes(String(header.format))) {
+                          toast.message('Limited Time Offer só permite cabeçalho com imagem ou vídeo. Removemos o cabeçalho.')
+                        }
+                      }}
                     >
                       {spec.limited_time_offer ? 'Remover' : 'Adicionar'}
                     </Button>
@@ -1298,7 +1836,8 @@ export function ManualTemplateBuilder({
                         <Input
                           value={spec.limited_time_offer.text || ''}
                           onChange={(e) => update({ limited_time_offer: { ...(spec.limited_time_offer || {}), text: e.target.value } })}
-                          className="bg-zinc-900 border-white/10 text-white"
+                          className="bg-zinc-950/40 border-white/10 text-white"
+                          maxLength={16}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1307,7 +1846,7 @@ export function ManualTemplateBuilder({
                           value={String(!!spec.limited_time_offer.has_expiration)}
                           onValueChange={(v) => update({ limited_time_offer: { ...(spec.limited_time_offer || {}), has_expiration: v === 'true' } })}
                         >
-                          <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
+                          <SelectTrigger className="w-full bg-zinc-950/40 border-white/10 text-white">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1317,6 +1856,20 @@ export function ManualTemplateBuilder({
                         </Select>
                       </div>
                     </div>
+                  ) : null}
+                  {spec.limited_time_offer ? (
+                    <div className="text-xs text-gray-500">
+                      Regras: body máx 600, cabeçalho só imagem/vídeo, sem rodapé, COPY_CODE máx 15.
+                    </div>
+                  ) : null}
+                  {spec.limited_time_offer && limitedTimeOfferTextTooLong ? (
+                    <div className="text-xs text-amber-300">Texto do LTO deve ter até 16 caracteres.</div>
+                  ) : null}
+                  {spec.limited_time_offer && limitedTimeOfferTextMissing ? (
+                    <div className="text-xs text-amber-300">Texto do LTO é obrigatório.</div>
+                  ) : null}
+                  {spec.limited_time_offer && limitedTimeOfferCategoryInvalid ? (
+                    <div className="text-xs text-amber-300">Limited Time Offer só é permitido em Marketing.</div>
                   ) : null}
                 </div>
               ) : null}
@@ -1330,7 +1883,7 @@ export function ManualTemplateBuilder({
                       <Input
                         value={spec.message_send_ttl_seconds ?? ''}
                         onChange={(e) => update({ message_send_ttl_seconds: e.target.value ? Number(e.target.value) : undefined })}
-                        className="bg-zinc-900 border-white/10 text-white"
+                        className="bg-zinc-950/40 border-white/10 text-white"
                         placeholder="ex: 300"
                       />
                     </div>
@@ -1340,7 +1893,7 @@ export function ManualTemplateBuilder({
                         value={String(!!spec.add_security_recommendation)}
                         onValueChange={(v) => update({ add_security_recommendation: v === 'true' })}
                       >
-                        <SelectTrigger className="w-full bg-zinc-900 border-white/10 text-white">
+                        <SelectTrigger className="w-full bg-zinc-950/40 border-white/10 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1354,7 +1907,7 @@ export function ManualTemplateBuilder({
                       <Input
                         value={spec.code_expiration_minutes ?? ''}
                         onChange={(e) => update({ code_expiration_minutes: e.target.value ? Number(e.target.value) : undefined })}
-                        className="bg-zinc-900 border-white/10 text-white"
+                        className="bg-zinc-950/40 border-white/10 text-white"
                         placeholder="ex: 10"
                       />
                     </div>
@@ -1385,20 +1938,113 @@ export function ManualTemplateBuilder({
                         // não travar digitando
                       }
                     }}
-                    className="bg-zinc-900 border-white/10 text-white min-h-28 font-mono text-xs"
+                    className="bg-zinc-950/40 border-white/10 text-white min-h-28 font-mono text-xs"
                     placeholder="Cole aqui um JSON de carousel (opcional)"
                   />
                 </div>
+                {carouselErrors.length ? (
+                  <div className="text-xs text-amber-300 space-y-1">
+                    {carouselErrors.map((err) => (
+                      <div key={err}>{err}</div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
           </details>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 px-5 py-4 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <button
+              type="button"
+              onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+              disabled={step === 1}
+              className={`text-sm transition ${step === 1 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-white'}`}
+            >
+              Voltar
+            </button>
+            <div className="text-center text-xs text-gray-500">
+              {step === 1 && !isConfigComplete && 'Complete a configuração para continuar'}
+              {step === 2 && !isContentComplete && (
+                !isHeaderFormatValid
+                  ? 'Tipo de cabeçalho inválido'
+                  : !isHeaderVariableValid
+                    ? 'Cabeçalho permite apenas 1 variável'
+                    : hasInvalidNamed
+                      ? 'Corrija as variáveis: use minúsculas e underscore'
+                    : hasDuplicateNamed
+                      ? 'Nomes de variável devem ser únicos'
+                    : hasMissingPositional
+                      ? 'Sequência posicional deve começar em {{1}} e não ter buracos'
+                    : hasInvalidPositional
+                      ? 'No modo numérico, use apenas {{1}}, {{2}}…'
+                    : footerHasVariables
+                      ? 'Rodapé não permite variáveis'
+                    : headerEdgeParameter.starts || headerEdgeParameter.ends
+                      ? 'O cabeçalho não pode começar nem terminar com variável'
+                    : bodyEdgeParameter.starts || bodyEdgeParameter.ends
+                      ? 'O corpo não pode começar nem terminar com variável'
+                    : hasLengthErrors
+                      ? 'Revise os limites de caracteres'
+                    : ltoHeaderInvalid
+                      ? 'LTO aceita apenas cabeçalho imagem/vídeo'
+                    : ltoFooterInvalid
+                      ? 'LTO não permite rodapé'
+                    : 'Preencha o corpo do template para continuar'
+              )}
+              {step === 3 && (
+                isButtonsValid
+                  ? 'Reveja os botões e envie para aprovação'
+                  : buttonErrors.length
+                    ? 'Revise as regras dos botões'
+                    : carouselErrors.length
+                      ? 'Revise o carousel'
+                      : limitedTimeOfferCategoryInvalid
+                        ? 'LTO só é permitido em Marketing'
+                        : limitedTimeOfferTextTooLong || ltoCopyCodeMissing || ltoCopyCodeTooLong || ltoHeaderInvalid || ltoFooterInvalid
+                          ? 'Revise o Limited Time Offer'
+                          : 'Revise as regras do template'
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!canContinue || isFinishing) return
+                if (step < 3) {
+                  setStep((prev) => Math.min(3, prev + 1))
+                  return
+                }
+                // Último passo: delega a ação ao pai (ex.: salvar + enviar)
+                onFinish?.()
+              }}
+              disabled={!canContinue || !!isFinishing}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                !isFinishing && canContinue
+                  ? 'bg-white text-black hover:bg-gray-200'
+                  : 'cursor-not-allowed border border-white/10 bg-white/10 text-gray-500'
+              }`}
+            >
+              {step < 3 ? (
+                'Continuar'
+              ) : isFinishing ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Enviando pra Meta…
+                </span>
+              ) : (
+                (onFinish ? 'Enviar pra Meta' : 'Fim')
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="space-y-6 lg:sticky lg:top-6 self-start">
         <Preview spec={spec} />
 
-        <div className="glass-panel rounded-xl p-4">
+        <div className={`${panelClass} ${panelCompactPadding}`}>
           <details>
             <summary className="cursor-pointer list-none select-none flex items-center justify-between">
               <div className="text-sm font-semibold text-white">Avançado</div>

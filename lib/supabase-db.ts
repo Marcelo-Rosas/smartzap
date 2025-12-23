@@ -1247,6 +1247,12 @@ const getTemplateBodyText = (components: TemplateComponent[], raw: unknown): str
     return ''
 }
 
+const normalizeParameterFormat = (value: unknown): 'positional' | 'named' | undefined => {
+    if (value === null || value === undefined) return undefined
+    const normalized = String(value).toLowerCase()
+    return normalized === 'named' ? 'named' : 'positional'
+}
+
 export const templateDb = {
     getAll: async (): Promise<Template[]> => {
         const { data, error } = await supabase
@@ -1265,7 +1271,7 @@ export const templateDb = {
                 category: (row.category as TemplateCategory) || 'MARKETING',
                 language: row.language,
                 status: (row.status as TemplateStatus) || 'PENDING',
-                parameterFormat: ((row as any).parameter_format as any) || undefined,
+                parameterFormat: normalizeParameterFormat((row as any).parameter_format),
                 specHash: (row as any).spec_hash ?? null,
                 fetchedAt: (row as any).fetched_at ?? null,
                 content: bodyText,
@@ -1293,7 +1299,7 @@ export const templateDb = {
             category: (data.category as TemplateCategory) || 'MARKETING',
             language: data.language,
             status: (data.status as TemplateStatus) || 'PENDING',
-            parameterFormat: ((data as any).parameter_format as any) || undefined,
+            parameterFormat: normalizeParameterFormat((data as any).parameter_format),
             specHash: (data as any).spec_hash ?? null,
             fetchedAt: (data as any).fetched_at ?? null,
             content: bodyText,
@@ -1352,7 +1358,7 @@ export const templateDb = {
                 category: template.category,
                 language: template.language,
                 status: template.status,
-                parameter_format: (template as any).parameterFormat || 'positional',
+                parameter_format: normalizeParameterFormat((template as any).parameterFormat) || 'positional',
                 components: typeof template.content === 'string'
                     ? JSON.parse(template.content)
                     : template.content,

@@ -48,21 +48,42 @@ export interface Template {
 }
 
 export interface TemplateComponent {
-  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
-  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS' | 'LIMITED_TIME_OFFER';
+  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
   text?: string;
   buttons?: TemplateButton[];
   example?: any;
+  limited_time_offer?: {
+    text: string;
+    has_expiration?: boolean;
+  };
 }
 
 export interface TemplateButton {
-  type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE' | 'OTP' | 'FLOW' | 'CATALOG' | 'MPM' | 'VOICE_CALL';
+  type:
+    | 'QUICK_REPLY'
+    | 'URL'
+    | 'PHONE_NUMBER'
+    | 'COPY_CODE'
+    | 'OTP'
+    | 'FLOW'
+    | 'CATALOG'
+    | 'MPM'
+    | 'VOICE_CALL'
+    | 'EXTENSION'
+    | 'ORDER_DETAILS'
+    | 'POSTBACK'
+    | 'REMINDER'
+    | 'SEND_LOCATION'
+    | 'SPM';
   text: string;
   url?: string;
   phone_number?: string;
-  example?: string[];
+  example?: string[] | string;
   otp_type?: 'COPY_CODE' | 'ONE_TAP' | 'ZERO_TAP';
   flow_id?: string;
+  action?: Record<string, unknown>;
+  payload?: string | Record<string, unknown>;
 }
 
 export interface Campaign {
