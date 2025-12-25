@@ -68,9 +68,22 @@ export async function sendWhatsAppPayload(
   const data = await safeJson(response);
   if (!response.ok) {
     const details = data ?? (await safeText(response));
+    const metaError =
+      typeof details === "object" && details !== null && "error" in details
+        ? (details as { error?: { message?: string; code?: number; error_subcode?: number } }).error
+        : undefined;
+    const metaMessage = metaError?.message ? String(metaError.message) : "";
+    const metaCode = metaError?.code ? `code ${metaError.code}` : "";
+    const metaSubcode = metaError?.error_subcode
+      ? `subcode ${metaError.error_subcode}`
+      : "";
+    const metaParts = [metaMessage, metaCode, metaSubcode].filter(Boolean).join(" | ");
+    const errorMessage = metaParts
+      ? `WhatsApp send failed: ${metaParts}`
+      : "WhatsApp send failed";
     return {
       ok: false,
-      error: "WhatsApp send failed",
+      error: errorMessage,
       data: details ?? undefined,
     };
   }
