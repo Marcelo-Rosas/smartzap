@@ -1,5 +1,16 @@
 # Changelog (docs)
 
+## 25/12/2025 - Debug (Run/Trace para campanhas)
+
+- **🔎 Timeline estruturada por `trace_id` (sem caçar logs)**
+  - Nova migration: `supabase/migrations/0026_add_campaign_trace_events.sql` cria `campaign_trace_events`
+  - Eventos relevantes do workflow/webhook passam a ser persistidos (best-effort) para inspeção no Supabase
+  - Persistência é filtrada para evitar alto volume (erros + fases-chave como `batch_start`/`batch_end`/`complete`)
+
+- **🧷 Correlação ponta-a-ponta (precheck → workflow → webhook)**
+  - `traceId` agora é gerado cedo no `dispatch` e gravado em `campaign_contacts` já no precheck (pending/skipped)
+  - Webhook emite eventos “positivos” (`delivered`/`read`) na timeline quando o update é aplicado
+
 ## 25/12/2025 - Segurança (Sentinel)
 
 - **🛡️ Hardening de headers HTTP (Next.js)**

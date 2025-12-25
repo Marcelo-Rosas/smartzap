@@ -609,6 +609,24 @@ export async function POST(request: NextRequest) {
               errors: (statusUpdate as any)?.errors ?? null,
             })
 
+            // Trace "positivo" (delivered/read) para fechar o loop na timeline do run.
+            // Observação: para status='failed' existe um caminho rico separado acima.
+            if (result.reason === 'applied' && result.traceId && (status === 'delivered' || status === 'read')) {
+              await emitWorkflowTrace({
+                traceId: String(result.traceId),
+                campaignId: result.campaignId,
+                step: 'webhook',
+                phase: status === 'delivered' ? 'webhook_delivered_applied' : 'webhook_read_applied',
+                ok: true,
+                phoneMasked: result.phone ? maskPhone(result.phone) : undefined,
+                extra: {
+                  messageId,
+                  status,
+                  eventTsIso: eventTsIso || null,
+                },
+              })
+            }
+
             if (eventId) {
               if (result.reason === 'applied') {
                 await markEventAttempt({

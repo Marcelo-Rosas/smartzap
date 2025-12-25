@@ -311,7 +311,7 @@ async function executeActionStep(input: {
   // Special handling for Condition action - needs template evaluation
   if (actionType === "Condition") {
     const systemAction = SYSTEM_ACTIONS.Condition;
-    const module = (await systemAction.importer()) as Record<
+    const mod = (await systemAction.importer()) as Record<
       string,
       (input: Record<string, unknown>) => Promise<unknown>
     >;
@@ -322,7 +322,7 @@ async function executeActionStep(input: {
 
     return await runWithRetry(
       () =>
-        module[systemAction.stepFunction]({
+        mod[systemAction.stepFunction]({
           condition: evaluatedCondition,
           // Include original expression and resolved values for logging purposes
           expression:
@@ -342,11 +342,11 @@ async function executeActionStep(input: {
   // Check system actions first (Database Query, HTTP Request)
   const systemAction = SYSTEM_ACTIONS[actionType];
   if (systemAction) {
-    const module = (await systemAction.importer()) as Record<
+    const mod = (await systemAction.importer()) as Record<
       string,
       (input: Record<string, unknown>) => Promise<unknown>
     >;
-    const stepFunction = module[systemAction.stepFunction];
+    const stepFunction = mod[systemAction.stepFunction];
     return await runWithRetry(
       () => stepFunction(stepInput),
       Number.isFinite(retryCount) ? retryCount : 0,
@@ -358,11 +358,11 @@ async function executeActionStep(input: {
   // Look up plugin action from the generated step registry
   const stepImporter = getStepImporter(actionType);
   if (stepImporter) {
-    const module = (await stepImporter.importer()) as Record<
+    const mod = (await stepImporter.importer()) as Record<
       string,
       (input: Record<string, unknown>) => Promise<unknown>
     >;
-    const stepFunction = module[stepImporter.stepFunction];
+    const stepFunction = mod[stepImporter.stepFunction];
     if (stepFunction) {
       return await runWithRetry(
         () => stepFunction(stepInput),

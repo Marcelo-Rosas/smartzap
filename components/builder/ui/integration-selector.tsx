@@ -168,7 +168,6 @@ export function IntegrationSelector({
         });
     }
     // Only run on mount and when status changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [integrationType, aiGatewayStatus?.enabled, aiGatewayStatus?.isVercelUser]);
 
   useEffect(() => {

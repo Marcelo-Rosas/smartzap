@@ -109,6 +109,11 @@ export async function POST(request: NextRequest) {
   const scheduledAtFromJob: string | undefined = body?.scheduledAt
   let { contacts } = body
 
+  // Correlation id para todo o "run" (precheck + workflow + webhook)
+  // - Deve ser gerado cedo para que rows skipped/pending no precheck também recebam trace_id.
+  // - O workflow reutiliza este mesmo traceId.
+  const traceId = `cmp_${campaignId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+
   // Carrega campanha cedo para:
   // - validar gatilho de agendamento (evitar job “fantasma” após cancelamento)
   // - obter template_variables quando necessário
@@ -503,6 +508,7 @@ export async function POST(request: NextRequest) {
       name: c.name || '',
       email: c.email || null,
       custom_fields: c.custom_fields || {},
+      trace_id: traceId,
       status: 'pending',
       skipped_at: null,
       skip_code: null,
@@ -519,6 +525,7 @@ export async function POST(request: NextRequest) {
       name: contact.name || '',
       email: contact.email || null,
       custom_fields: contact.custom_fields || {},
+      trace_id: traceId,
       status: 'skipped',
       skipped_at: nowIso,
       skip_code: code,
@@ -745,8 +752,6 @@ export async function POST(request: NextRequest) {
     console.log(`[Dispatch] baseUrl debug: ${JSON.stringify({ vercelEnv, hasExplicitAppUrl: Boolean(explicitAppUrl), hasRequestOrigin: Boolean(requestOrigin), productionUrl: productionUrl || null, vercelUrl: vercelUrl || null })}`)
     console.log(`[Dispatch] Template variables: ${JSON.stringify(resolvedTemplateVariables)}`)
     console.log(`[Dispatch] Is localhost: ${isLocalhost}`)
-
-    const traceId = `cmp_${campaignId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     console.log(`[Dispatch] traceId: ${traceId}`)
 
     const workflowPayload = {
