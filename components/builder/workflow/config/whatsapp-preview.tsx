@@ -10,7 +10,9 @@ type PreviewProps = {
 function getPreviewText(actionType: string, config: Record<string, unknown>) {
   switch (actionType) {
     case "Send Message":
+    case "Ask Question":
     case "whatsapp/send-message":
+    case "whatsapp/ask-question":
       return String(config.message || "").trim() || "Your message preview";
     case "Send Template":
     case "whatsapp/send-template": {

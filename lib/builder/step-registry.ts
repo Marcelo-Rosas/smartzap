@@ -7,6 +7,7 @@ export type StepImporter = {
 
 const STEP_IMPORTERS: Record<string, () => Promise<unknown>> = {
   "whatsapp/send-message": () => import("./steps/whatsapp/send-message"),
+  "whatsapp/ask-question": () => import("./steps/whatsapp/ask-question"),
   "whatsapp/send-template": () => import("./steps/whatsapp/send-template"),
   "whatsapp/send-media": () => import("./steps/whatsapp/send-media"),
   "whatsapp/send-buttons": () => import("./steps/whatsapp/send-buttons"),

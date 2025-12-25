@@ -31,6 +31,7 @@ import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
 import { applyFlowMappingToContact } from '@/lib/flow-mapping'
 import { settingsDb } from '@/lib/supabase-db'
 import { ensureWorkflowRecord, getCompanyId } from '@/lib/builder/workflow-db'
+import { getPendingConversation } from '@/lib/builder/workflow-conversations'
 
 // Get WhatsApp Access Token from centralized helper
 async function getWhatsAppAccessToken(): Promise<string | null> {
@@ -612,7 +613,38 @@ export async function POST(request: NextRequest) {
           console.log(`📩 Incoming message from ${from}: ${messageType} (Chatbot disabled)${text ? ` | text="${text}"` : ''}`)
 
           // =================================================================
-          // Workflow Builder (MVP): run default workflow on inbound text
+          // Workflow Builder (MVP): resume pending conversation if any
+          // =================================================================
+          const normalizedFrom = normalizePhoneNumber(from)
+          if (normalizedFrom && text) {
+            const pendingConversation = await getPendingConversation(
+              supabaseAdmin,
+              normalizedFrom
+            )
+            if (pendingConversation) {
+              try {
+                const origin = request.nextUrl.origin
+                await fetch(
+                  `${origin}/api/builder/workflow/${pendingConversation.workflow_id}/resume`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      workflowId: pendingConversation.workflow_id,
+                      conversationId: pendingConversation.id,
+                      input: { from: normalizedFrom, to: normalizedFrom, message: text },
+                    }),
+                  }
+                )
+                continue
+              } catch (e) {
+                console.error('[Webhook] Failed to resume conversation:', e)
+              }
+            }
+          }
+
+          // =================================================================
+          // Workflow Builder (MVP): run keyword/default workflow
           // =================================================================
           const matchedWorkflowId = findMatchingWorkflow(keywordWorkflows, text)
           const targetWorkflowId = matchedWorkflowId || defaultWorkflowId

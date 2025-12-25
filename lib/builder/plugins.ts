@@ -145,6 +145,51 @@ const integrations: IntegrationPlugin[] = [
         outputFields: [{ field: "messageId", description: "Message ID" }],
       },
       {
+        slug: "ask-question",
+        label: "Ask Question",
+        description: "Ask a question and wait for the reply",
+        category: "WhatsApp",
+        stepFunction: "askQuestionStep",
+        stepImportPath: "whatsapp/ask-question",
+        configFields: [
+          {
+            key: "toSource",
+            label: "Recipient",
+            type: "select",
+            options: [
+              { label: "From inbound message", value: "inbound" },
+              { label: "Manual number", value: "manual" },
+            ],
+            defaultValue: "inbound",
+          },
+          {
+            key: "to",
+            label: "To",
+            type: "template-input",
+            placeholder: "+5511999999999",
+            showWhen: { field: "toSource", equals: "manual" },
+          },
+          {
+            key: "message",
+            label: "Question",
+            type: "template-textarea",
+            placeholder: "Type your question",
+            required: true,
+          },
+          {
+            key: "variableKey",
+            label: "Save answer as",
+            type: "text",
+            placeholder: "user_answer",
+            required: true,
+          },
+        ],
+        outputFields: [
+          { field: "status", description: "Conversation status" },
+          { field: "conversationId", description: "Conversation ID" },
+        ],
+      },
+      {
         slug: "send-template",
         label: "Send Template",
         description: "Send a template message",

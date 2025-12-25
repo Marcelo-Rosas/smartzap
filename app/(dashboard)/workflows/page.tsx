@@ -190,6 +190,28 @@ export default function WorkflowsPage() {
     }
   };
 
+  const handleDelete = async (workflowId: string) => {
+    const confirmed = window.confirm(
+      "Tem certeza que deseja excluir este workflow? Essa acao nao pode ser desfeita."
+    );
+    if (!confirmed) return;
+    try {
+      await api.workflow.delete(workflowId);
+      if (defaultWorkflowId === workflowId) {
+        await fetch("/api/settings/workflow-builder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ defaultWorkflowId: "" }),
+        });
+        setDefaultWorkflowId(null);
+      }
+      toast.success("Workflow excluido");
+      await Promise.all([refetch(), defaultWorkflowQuery.refetch()]);
+    } catch (error) {
+      console.error("Failed to delete workflow:", error);
+      toast.error("Falha ao excluir workflow");
+    }
+  };
   const handleSetDefault = async (workflowId: string) => {
     setIsSettingDefault(true);
     try {
@@ -390,6 +412,15 @@ export default function WorkflowsPage() {
                         }}
                       >
                         Versões
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-red-400 focus:text-red-400"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDelete(workflow.id);
+                        }}
+                      >
+                        Excluir
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

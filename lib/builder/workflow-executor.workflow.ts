@@ -14,7 +14,10 @@ import {
 } from "./step-registry";
 import type { StepContext } from "./steps/step-handler";
 import { triggerStep } from "./steps/trigger";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import { getErrorMessageAsync } from "./utils";
+import { createConversation } from "./workflow-conversations";
+import { normalizePhoneNumber } from "@/lib/phone-formatter";
 import type { WorkflowEdge, WorkflowNode } from "./workflow-store";
 
 // System actions that don't have plugins - maps to module import functions
@@ -387,7 +390,8 @@ async function executeActionStep(input: {
  */
 function processTemplates(
   config: Record<string, unknown>,
-  outputs: NodeOutputs
+  outputs: NodeOutputs,
+  variables: Record<string, unknown>
 ): Record<string, unknown> {
   const processed: Record<string, unknown> = {};
 
@@ -395,6 +399,17 @@ function processTemplates(
     if (typeof value === "string") {
       // Process template variables like {{@nodeId:Label.field}}
       let processedValue = value;
+      const variablePattern = /\{\{\s*var\.([a-zA-Z0-9_.-]+)\s*\}\}/g;
+      processedValue = processedValue.replace(variablePattern, (_match, varKey) => {
+        const rawValue = variables[varKey];
+        if (rawValue === null || rawValue === undefined) {
+          return "";
+        }
+        if (typeof rawValue === "object") {
+          return JSON.stringify(rawValue);
+        }
+        return String(rawValue);
+      });
       const templatePattern = /\{\{@([^:]+):([^}]+)\}\}/g;
       processedValue = processedValue.replace(
         templatePattern,
@@ -477,7 +492,12 @@ function processTemplates(
 /**
  * Main workflow executor function
  */
-export async function executeWorkflow(input: WorkflowExecutionInput) {
+export async function executeWorkflow(
+  input: WorkflowExecutionInput & {
+    startNodeIds?: string[];
+    initialVariables?: Record<string, unknown>;
+  }
+) {
   "use workflow";
 
   console.log("[Workflow Executor] Starting workflow execution");
@@ -493,7 +513,9 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
   const outputs: NodeOutputs = {};
   const results: Record<string, ExecutionResult> = {};
-  const variables: Record<string, unknown> = {};
+  const variables: Record<string, unknown> = {
+    ...(input.initialVariables || {}),
+  };
 
   // Build node and edge maps
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -513,10 +535,61 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
   const blockedIncoming = new Map<string, number>();
   const resolvedNodes = new Set<string>();
 
+  const startNodeIds =
+    input.startNodeIds && input.startNodeIds.length > 0
+      ? input.startNodeIds
+      : null;
+
+  const reachableNodes = new Set<string>();
+  if (startNodeIds) {
+    const stack = [...startNodeIds];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current || reachableNodes.has(current)) continue;
+      reachableNodes.add(current);
+      const nextNodes = edgesBySource.get(current) || [];
+      for (const next of nextNodes) {
+        if (!reachableNodes.has(next)) {
+          stack.push(next);
+        }
+      }
+    }
+  }
+
+  if (startNodeIds) {
+    const filteredIncoming = new Map<string, number>();
+    for (const nodeId of reachableNodes) {
+      filteredIncoming.set(nodeId, 0);
+    }
+    for (const edge of edges) {
+      if (reachableNodes.has(edge.source) && reachableNodes.has(edge.target)) {
+        filteredIncoming.set(
+          edge.target,
+          (filteredIncoming.get(edge.target) || 0) + 1
+        );
+      }
+    }
+    for (const [nodeId, count] of filteredIncoming.entries()) {
+      incomingCounts.set(nodeId, count);
+    }
+    for (const nodeId of [...incomingCounts.keys()]) {
+      if (!reachableNodes.has(nodeId)) {
+        incomingCounts.delete(nodeId);
+      }
+    }
+    for (const nodeId of startNodeIds) {
+      if (incomingCounts.has(nodeId)) {
+        incomingCounts.set(nodeId, 0);
+      }
+    }
+  }
+
   const readyQueue: string[] = [];
   for (const [nodeId, count] of incomingCounts.entries()) {
     if (count === 0) {
-      readyQueue.push(nodeId);
+      if (!startNodeIds || reachableNodes.has(nodeId)) {
+        readyQueue.push(nodeId);
+      }
     }
   }
 
@@ -636,6 +709,7 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
           const triggerContext: StepContext = {
             executionId,
+            workflowId,
             nodeId: node.id,
             nodeName: getNodeName(node),
             nodeType: node.data.type,
@@ -663,7 +737,8 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
             const processedConfig = processTemplates(
               configWithoutCondition,
-              outputs
+              outputs,
+              variables
             );
 
             if (originalCondition !== undefined) {
@@ -672,10 +747,44 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
 
             const stepContext: StepContext = {
               executionId,
+              workflowId,
               nodeId: node.id,
               nodeName: getNodeName(node),
               nodeType: actionType,
             };
+
+            let resumeNodeId: string | null = null;
+            if (actionType === "Ask Question") {
+              const nextNodes = edgesBySource.get(node.id) || [];
+              if (nextNodes.length === 0) {
+                result = {
+                  success: false,
+                  error: "Ask Question requires a following node to resume.",
+                };
+                results[nodeId] = result;
+                resolvedNodes.add(nodeId);
+                outputs[nodeId.replace(/[^a-zA-Z0-9]/g, "_")] = {
+                  label: node.data.label || nodeId,
+                  data: result.data,
+                };
+                continue;
+              }
+              if (nextNodes.length > 1) {
+                result = {
+                  success: false,
+                  error: "Ask Question supports only one outgoing path.",
+                };
+                results[nodeId] = result;
+                resolvedNodes.add(nodeId);
+                outputs[nodeId.replace(/[^a-zA-Z0-9]/g, "_")] = {
+                  label: node.data.label || nodeId,
+                  data: result.data,
+                };
+                continue;
+              }
+              resumeNodeId = nextNodes[0];
+              processedConfig.resumeNodeId = resumeNodeId;
+            }
 
             const stepResult = await executeActionStep({
               actionType,
@@ -705,6 +814,96 @@ export async function executeWorkflow(input: WorkflowExecutionInput) {
               result = { success: false, error: errorMessage };
             } else {
               result = { success: true, data: stepResult };
+            }
+
+            if (
+              actionType === "Ask Question" &&
+              result.success &&
+              resumeNodeId
+            ) {
+              const variableKey = String(processedConfig.variableKey || "").trim();
+              if (!variableKey) {
+                result = {
+                  success: false,
+                  error: "Ask Question requires a variable key.",
+                };
+              } else if (!workflowId || !executionId) {
+                result = {
+                  success: false,
+                  error: "Workflow context missing for Ask Question.",
+                };
+              } else {
+                const supabase = getSupabaseAdmin();
+                const phoneRaw = String(
+                  (triggerInput?.from as string | undefined) ||
+                    (triggerInput?.to as string | undefined) ||
+                    ""
+                );
+                const normalizedPhone = normalizePhoneNumber(phoneRaw);
+                if (!supabase) {
+                  result = {
+                    success: false,
+                    error: "Supabase not configured for conversation storage.",
+                  };
+                } else if (!normalizedPhone) {
+                  result = {
+                    success: false,
+                    error: "Missing inbound phone number for Ask Question.",
+                  };
+                } else {
+                  const conversation = await createConversation({
+                    supabase,
+                    workflowId,
+                    phone: normalizedPhone,
+                    resumeNodeId,
+                    variableKey,
+                    variables,
+                  });
+                  if (!conversation) {
+                    result = {
+                      success: false,
+                      error: "Failed to save conversation.",
+                    };
+                  } else {
+                    result = {
+                      success: true,
+                      data: {
+                        send: stepResult,
+                        conversationId: conversation.id,
+                        resumeNodeId,
+                        variableKey,
+                      },
+                    };
+                    await supabase
+                      .from("workflow_runs")
+                      .update({
+                        status: "waiting",
+                        output: {
+                          status: "waiting",
+                          conversationId: conversation.id,
+                          resumeNodeId,
+                          variableKey,
+                        },
+                        finished_at: null,
+                      })
+                      .eq("id", executionId);
+                    results[nodeId] = result;
+                    resolvedNodes.add(nodeId);
+                    outputs[nodeId.replace(/[^a-zA-Z0-9]/g, "_")] = {
+                      label: node.data.label || nodeId,
+                      data: result.data,
+                    };
+                    return {
+                      success: true,
+                      results,
+                      outputs,
+                      paused: true,
+                      conversationId: conversation.id,
+                      resumeNodeId,
+                    };
+                  }
+                }
+              }
             }
           }
         } else {

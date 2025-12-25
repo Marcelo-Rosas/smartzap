@@ -13,9 +13,12 @@ type BuilderWorkflowInput = {
   workflowId: string;
   input?: {
     to?: string;
+    from?: string;
     message?: string;
     previewUrl?: boolean;
   };
+  startNodeIds?: string[];
+  initialVariables?: Record<string, unknown>;
 };
 
 export const { POST } = serve<BuilderWorkflowInput>(async (context) => {
@@ -60,7 +63,7 @@ export const { POST } = serve<BuilderWorkflowInput>(async (context) => {
     started_at: new Date().toISOString(),
   });
 
-  if (triggerType === "Keywords") {
+  if (triggerType === "Keywords" && !context.requestPayload.startNodeIds) {
     const keywordListRaw = triggerNode?.data.config?.keywordList as
       | string
       | undefined;
@@ -113,12 +116,18 @@ export const { POST } = serve<BuilderWorkflowInput>(async (context) => {
       triggerInput: input ?? {},
       executionId,
       workflowId,
+      startNodeIds: context.requestPayload.startNodeIds,
+      initialVariables: context.requestPayload.initialVariables,
     })
   );
 
   return {
     executionId,
-    status: execution.success ? "success" : "failed",
+    status: execution.paused
+      ? "waiting"
+      : execution.success
+        ? "success"
+        : "failed",
     output: execution,
   };
 });
