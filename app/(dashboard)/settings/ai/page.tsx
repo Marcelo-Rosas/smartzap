@@ -330,11 +330,6 @@ export default function AICenterPage() {
     () => (model ? getModelLabel(provider, model) : '—'),
     [provider, model]
   )
-  const activeRoutesCount = useMemo(
-    () => Object.values(routes).filter(Boolean).length,
-    [routes]
-  )
-  const totalRoutesCount = useMemo(() => Object.keys(routes).length, [routes])
   const primaryProviderStatus = providerStatuses[provider] ?? EMPTY_PROVIDER_STATUS
   const primaryProviderConfigured = primaryProviderStatus.isConfigured
 
@@ -523,17 +518,6 @@ export default function AICenterPage() {
               <div className="text-base font-semibold">{primaryProviderLabel}</div>
               <div className="text-xs text-gray-400">Modelo: {primaryModelLabel}</div>
             </div>
-          </div>
-        </div>
-
-        <div className="glass-panel rounded-2xl p-5">
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-gray-400">Rotas ativas</div>
-            <Sparkles className="size-4 text-emerald-300" />
-          </div>
-          <div className="mt-4 text-2xl font-semibold text-white">{activeRoutesCount}</div>
-          <div className="text-xs text-gray-400">
-            {activeRoutesCount} de {totalRoutesCount} em produção
           </div>
         </div>
       </div>
