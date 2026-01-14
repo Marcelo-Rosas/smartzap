@@ -1,5 +1,19 @@
 import { z } from 'zod'
 
+// Dados do contato vindos do JOIN
+export type SubmissionContact = {
+  id: string
+  name: string | null
+  phone: string | null
+  email: string | null
+} | null
+
+// Dados da campanha vindos do JOIN
+export type SubmissionCampaign = {
+  id: string
+  name: string | null
+} | null
+
 export type FlowSubmission = {
   id: string
   message_id: string
@@ -18,6 +32,9 @@ export type FlowSubmission = {
   phone_number_id: string | null
   message_timestamp: string | null
   created_at: string
+  // Dados relacionados (JOINs)
+  contact: SubmissionContact
+  campaign: SubmissionCampaign
 }
 
 export interface SubmissionsListParams {
@@ -34,6 +51,24 @@ export interface SubmissionsListResult {
   limit: number
   offset: number
 }
+
+// Schema para dados do contato (JOIN)
+const SubmissionContactSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable(),
+    phone: z.string().nullable(),
+    email: z.string().nullable(),
+  })
+  .nullable()
+
+// Schema para dados da campanha (JOIN)
+const SubmissionCampaignSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable(),
+  })
+  .nullable()
 
 const FlowSubmissionSchema = z.object({
   id: z.string(),
@@ -53,6 +88,9 @@ const FlowSubmissionSchema = z.object({
   phone_number_id: z.string().nullable(),
   message_timestamp: z.string().nullable(),
   created_at: z.string(),
+  // Dados relacionados (JOINs)
+  contact: SubmissionContactSchema,
+  campaign: SubmissionCampaignSchema,
 })
 
 function parseList(raw: unknown): FlowSubmission[] {

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronLeft, Calendar, Loader2, Play, Pause, Ban, RefreshCw, Download } from 'lucide-react';
+import { ChevronLeft, Calendar, Loader2, Play, Pause, Ban, RefreshCw, Download, ClipboardList } from 'lucide-react';
 import { PrefetchLink } from '@/components/ui/PrefetchLink';
 import { PageHeader, PageTitle } from '@/components/ui/page';
 import { CampaignStatus } from '@/types';
@@ -171,21 +171,30 @@ export const CampaignHeader: React.FC<CampaignHeaderProps> = ({
           </button>
         )}
 
+        {/* Link para página de submissões da campanha */}
+        <PrefetchLink
+          href={`/submissions?campaignId=${encodeURIComponent(campaign.id)}`}
+          className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2 text-sm font-medium"
+          title="Ver submissões dos formulários MiniApp desta campanha"
+        >
+          <ClipboardList size={16} /> Ver Submissões
+        </PrefetchLink>
+
         <a
           href={`/api/campaigns/${encodeURIComponent(campaign.id)}/report.csv`}
           download
           className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2 text-sm font-medium"
-          title="Baixar relatorio em CSV"
+          title="Baixar relatório em CSV"
         >
-          <Download size={16} /> Relatorio CSV
+          <Download size={16} /> Relatório CSV
         </a>
         <a
           href={`/api/flows/submissions/report.csv?campaignId=${encodeURIComponent(campaign.id)}`}
           download
           className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2 text-sm font-medium"
-          title="Baixar submissoes de MiniApps em CSV"
+          title="Baixar submissões de MiniApps em CSV"
         >
-          <Download size={16} /> Submissoes MiniApp
+          <Download size={16} /> Submissões MiniApp
         </a>
       </div>
     </PageHeader>

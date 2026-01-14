@@ -20,10 +20,18 @@ export async function GET(request: NextRequest) {
     const limit = Math.max(1, Math.min(100, Number(limitParam) || 20))
     const offset = Math.max(0, Number(offsetParam) || 0)
 
-    // Query base
+    // Query base com JOINs para trazer dados relacionados
+    // Supabase PostgREST permite foreign key embeds automaticamente
     let query = supabase
       .from('flow_submissions')
-      .select('*', { count: 'exact' })
+      .select(
+        `
+        *,
+        contact:contacts(id, name, phone, email),
+        campaign:campaigns(id, name)
+        `,
+        { count: 'exact' }
+      )
       .order('created_at', { ascending: false })
 
     // Filtro por campanha

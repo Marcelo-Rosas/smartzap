@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Search, ChevronLeft, ChevronRight, Loader2, Inbox, Phone, Calendar, FileText } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Loader2, Inbox, Phone, Calendar, FileText, User, Megaphone } from 'lucide-react'
 import { Page, PageHeader, PageTitle, PageDescription } from '@/components/ui/page'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -27,22 +27,53 @@ function SubmissionCard({
   const fieldEntries = Object.entries(fields)
   const createdAt = new Date(submission.created_at)
 
+  // Dados relacionados
+  const contactName = submission.contact?.name
+  const contactEmail = submission.contact?.email
+  const campaignName = submission.campaign?.name
+
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 hover:bg-zinc-900/80 transition-colors">
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-            <Phone className="w-4 h-4 text-emerald-400" />
+            {contactName ? (
+              <User className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Phone className="w-4 h-4 text-emerald-400" />
+            )}
           </div>
           <div>
-            <div className="font-medium text-white">{formatPhone(submission.from_phone)}</div>
+            {/* Nome do contato (se disponível) ou telefone */}
+            <div className="font-medium text-white">
+              {contactName || formatPhone(submission.from_phone)}
+            </div>
+            {/* Se tem nome, mostra telefone abaixo */}
+            {contactName && (
+              <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                <Phone className="w-3 h-3" />
+                {formatPhone(submission.from_phone)}
+                {contactEmail && (
+                  <span className="ml-2 text-gray-500">• {contactEmail}</span>
+                )}
+              </div>
+            )}
+            {/* Data */}
             <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
               <Calendar className="w-3 h-3" />
               {createdAt.toLocaleDateString('pt-BR')} às {createdAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
         </div>
+
+        {/* Badge da campanha (se disponível) */}
+        {campaignName && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <Megaphone className="w-3 h-3 text-blue-400" />
+            <span className="text-xs text-blue-300">{campaignName}</span>
+          </div>
+        )}
       </div>
 
       {/* Form Fields */}
