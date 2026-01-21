@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const isProd = process.env.NODE_ENV === 'production'
+const projectRoot = path.dirname(fileURLToPath(import.meta.url))
 
 // Security hardening: baseline headers that reduce attack surface without breaking common app behavior.
 // Note: CSP is intentionally not set here to avoid accidental breakage; if needed, add it iteratively.
@@ -44,7 +47,7 @@ const nextConfig: NextConfig = {
   // Turbopack config
   turbopack: {
     // Set the workspace root to this directory
-    root: __dirname,
+    root: projectRoot,
   },
 
   async headers() {

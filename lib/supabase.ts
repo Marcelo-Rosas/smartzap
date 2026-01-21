@@ -7,6 +7,15 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
+function isValidHttpUrl(value: string): boolean {
+    try {
+        const url = new URL(value)
+        return url.protocol === 'http:' || url.protocol === 'https:'
+    } catch {
+        return false
+    }
+}
+
 function getSupabasePublishableKey(): string | undefined {
     // O Supabase pode gerar esse nome no snippet do dashboard.
     return (
@@ -57,6 +66,10 @@ export function getSupabaseAdmin(): SupabaseClient | null {
         console.warn('[getSupabaseAdmin] NEXT_PUBLIC_SUPABASE_URL is missing');
         return null;
     }
+    if (!isValidHttpUrl(url)) {
+        console.warn('[getSupabaseAdmin] NEXT_PUBLIC_SUPABASE_URL is invalid');
+        return null;
+    }
 
     // Validation: Ensure Service Key is NOT the Anon Key to prevent "Permission Denied" errors
     const publishableKey = getSupabasePublishableKey();
@@ -94,6 +107,10 @@ export function getSupabaseBrowser(): SupabaseClient | null {
 
     if (!url || !key) {
         // Return null when not configured - allows app to boot for setup wizard
+        return null
+    }
+    if (!isValidHttpUrl(url)) {
+        console.warn('[getSupabaseBrowser] NEXT_PUBLIC_SUPABASE_URL is invalid')
         return null
     }
 
