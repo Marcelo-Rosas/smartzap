@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 const verifyToken = '8a3b5c7d1e9f0a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b';
 
 // WhatsApp Credentials
-const whatsappToken = 'EAATcBoIctqABQsOFxbhDKw8RVhVxZA7gAHOEcRgTedC0dw59dYrkIOdTcNkfFquYn2J0xKPIUzuRMoEqXxgJ8glIwecsUjZAEh5HFboQRboagsY8OXd2LQPz6YNPEMZAen3OLMWZAOnEWFczgWGbXAvHatKRuNGMwwXGUEz0DWHlnK1Polf08ZAtgTYkZApgZDZD';
+const whatsappToken = 'EAATcBoIctqABQpg5IqtPDKpeV3fc19XGSRwOBaADoG3PVHSK0LoHtfZAJmwY05q2vTx0BkSzS9HYpWKdlaNfjFZCcvTobPX5AV2yeEoKDGuZCYTMZBccjpZBsaRuTWr2ZAqusXZAMSOiCvbeKkuixkgDZAXx6rnlnwn1ZAlMiYVc56gMRz9ECRanOyoDABhxo4AZDZD';
 const whatsappPhoneId = '1367820417676960';
 const whatsappBusinessAccountId = '61585593160042';
 
