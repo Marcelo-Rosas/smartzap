@@ -1,13 +1,12 @@
 'use client'
 
 import React from 'react'
+import { Container } from '@/components/ui/container'
 import {
   ButtonType,
   ButtonCounts,
   Flow,
   Spec,
-  PANEL_CLASS,
-  PANEL_PADDING,
   AddButtonDropdown,
   QuickReplyButtonList,
   CTAButtonList,
@@ -76,14 +75,14 @@ export function StepButtons({
   return (
     <>
       {/* Main Buttons Panel */}
-      <div className={`${PANEL_CLASS} ${PANEL_PADDING} space-y-4`}>
+      <Container variant="default" padding="lg" className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold text-white">
-              Botoes <span className="text-xs text-gray-500 font-normal">* Opcional</span>
+            <div className="text-sm font-semibold text-[var(--ds-text-primary)]">
+              Botoes <span className="text-xs text-[var(--ds-text-muted)] font-normal">* Opcional</span>
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-[var(--ds-text-secondary)]">
               E possivel adicionar ate 10 botoes. Se adicionar mais de 3, eles aparecem em lista.
             </div>
           </div>
@@ -92,7 +91,7 @@ export function StepButtons({
 
         {/* Button Lists */}
         {!hasButtons ? (
-          <div className="text-sm text-gray-500">Nenhum botao</div>
+          <div className="text-sm text-[var(--ds-text-muted)]">Nenhum botao</div>
         ) : (
           <div className="space-y-5">
             {hasQuickReplies && (
@@ -125,19 +124,19 @@ export function StepButtons({
 
         {/* Validation Messages */}
         {isAtMaxButtons && (
-          <div className="text-xs text-amber-300">
+          <div className="text-xs text-amber-700 dark:text-amber-300">
             Voce ja atingiu o limite de {maxButtons} botoes.
           </div>
         )}
 
         {buttonErrors.length > 0 && (
-          <div className="text-xs text-amber-300 space-y-1">
+          <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
             {buttonErrors.map((err) => (
               <div key={err}>{err}</div>
             ))}
           </div>
         )}
-      </div>
+      </Container>
 
       {/* Advanced Panel */}
       <AdvancedPanel

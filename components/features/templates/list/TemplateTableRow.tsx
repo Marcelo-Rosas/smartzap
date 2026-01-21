@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FileText, Check, Loader2, Trash2, Eye, Pencil, Send, Megaphone } from 'lucide-react';
 import { Template } from '../../../../types';
 import { StatusBadge } from './StatusBadge';
+import { Button } from '@/components/ui/button';
 
 export interface TemplateTableRowProps {
   template: Template;
@@ -28,7 +29,7 @@ export interface TemplateTableRowProps {
   onPrefetchPreview?: () => void;
 }
 
-export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
+const TemplateTableRowComponent: React.FC<TemplateTableRowProps> = ({
   template,
   isManualDraft,
   isRowSelected,
@@ -65,7 +66,7 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
     <tr
       onMouseEnter={handleRowEnter}
       onMouseLeave={onMouseLeave}
-      className={`hover:bg-white/5 transition-colors group cursor-pointer ${
+      className={`hover:bg-[var(--ds-bg-hover)] transition-colors group cursor-pointer ${
         isRowSelected ? (isManualDraft ? 'bg-amber-500/5' : 'bg-emerald-500/5') : ''
       }`}
     >
@@ -78,12 +79,12 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
               ? isManualDraft
                 ? 'bg-amber-500 border-amber-500'
                 : 'bg-emerald-500 border-emerald-500'
-              : 'border-white/20 hover:border-white/40'
+              : 'border-[var(--ds-border-default)] hover:border-[var(--ds-border-strong)]'
           }`}
           title={isRowSelected ? 'Desmarcar' : 'Selecionar'}
         >
           {isRowSelected && (
-            <Check className={`w-3 h-3 ${isManualDraft ? 'text-black' : 'text-white'}`} />
+            <Check className={`w-3 h-3 ${isManualDraft ? 'text-black' : 'text-[var(--ds-text-primary)]'}`} />
           )}
         </button>
       </td>
@@ -96,11 +97,11 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
             className="flex items-center gap-3 hover:opacity-90"
             title="Continuar edicao"
           >
-            <div className="p-2 bg-zinc-950/40 rounded-lg text-gray-400 group-hover:text-emerald-200 transition-colors">
+            <div className="p-2 bg-[var(--ds-bg-elevated)] rounded-lg text-[var(--ds-text-secondary)] group-hover:text-emerald-200 transition-colors">
               <FileText size={16} />
             </div>
             <span
-              className="font-medium text-white group-hover:text-emerald-200 transition-colors truncate max-w-50"
+              className="font-medium text-[var(--ds-text-primary)] group-hover:text-emerald-200 transition-colors truncate max-w-50"
               title={template.name}
             >
               {template.name}
@@ -108,11 +109,11 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
           </Link>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-zinc-950/40 rounded-lg text-gray-400 group-hover:text-emerald-200 transition-colors">
+            <div className="p-2 bg-[var(--ds-bg-elevated)] rounded-lg text-[var(--ds-text-secondary)] group-hover:text-emerald-200 transition-colors">
               <FileText size={16} />
             </div>
             <span
-              className="font-medium text-white group-hover:text-emerald-200 transition-colors truncate max-w-50"
+              className="font-medium text-[var(--ds-text-primary)] group-hover:text-emerald-200 transition-colors truncate max-w-50"
               title={template.name}
             >
               {template.name}
@@ -137,10 +138,10 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
         <span
           className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium ${
             template.category === 'UTILIDADE'
-              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+              ? 'bg-emerald-500/10 text-[var(--ds-status-success-text)] border-emerald-500/20'
               : template.category === 'MARKETING'
-                ? 'bg-amber-500/10 text-amber-200 border-amber-500/20'
-                : 'bg-white/5 text-gray-300 border-white/10'
+                ? 'bg-amber-500/10 text-[var(--ds-status-warning-text)] border-amber-500/20'
+                : 'bg-[var(--ds-bg-hover)] text-[var(--ds-text-secondary)] border-[var(--ds-border-default)]'
           }`}
         >
           {template.category}
@@ -148,9 +149,9 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
       </td>
 
       {/* Language */}
-      <td className="px-4 py-4 text-gray-500 font-mono text-xs" onClick={handleCellClick}>
+      <td className="px-4 py-4 text-[var(--ds-text-muted)] font-mono text-xs" onClick={handleCellClick}>
         {isManualDraft ? (
-          <Link href={draftHref} className="hover:text-gray-300" title="Continuar edicao">
+          <Link href={draftHref} className="hover:text-[var(--ds-text-secondary)]" title="Continuar edicao">
             {template.language}
           </Link>
         ) : (
@@ -162,13 +163,13 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
       <td className="px-4 py-4 max-w-xs" onClick={handleCellClick}>
         {isManualDraft ? (
           <Link href={draftHref} className="block" title="Continuar edicao">
-            <p className="text-sm text-gray-400 truncate" title={template.content}>
+            <p className="text-sm text-[var(--ds-text-secondary)] truncate" title={template.content}>
               {template.content.slice(0, 50)}
               {template.content.length > 50 ? '...' : ''}
             </p>
           </Link>
         ) : (
-          <p className="text-sm text-gray-400 truncate" title={template.content}>
+          <p className="text-sm text-[var(--ds-text-secondary)] truncate" title={template.content}>
             {template.content.slice(0, 50)}
             {template.content.length > 50 ? '...' : ''}
           </p>
@@ -177,11 +178,11 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
 
       {/* Updated */}
       <td
-        className="px-4 py-4 text-gray-500 font-mono text-xs whitespace-nowrap"
+        className="px-4 py-4 text-[var(--ds-text-muted)] font-mono text-xs whitespace-nowrap"
         onClick={handleCellClick}
       >
         {isManualDraft ? (
-          <Link href={draftHref} className="hover:text-gray-300" title="Continuar edicao">
+          <Link href={draftHref} className="hover:text-[var(--ds-text-secondary)]" title="Continuar edicao">
             {new Date(template.lastUpdated).toLocaleDateString('pt-BR')}
           </Link>
         ) : (
@@ -194,22 +195,17 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
         <div className="flex items-center justify-end gap-1">
           {isManualDraft ? (
             <>
-              <Link
-                href={draftHref}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-zinc-950/40 text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
-                title="Continuar edicao"
-              >
-                <Pencil size={14} />
-                Continuar
-              </Link>
-              <button
+              <Button variant="outline" size="sm" asChild>
+                <Link href={draftHref} title="Continuar edicao">
+                  <Pencil size={14} />
+                  Continuar
+                </Link>
+              </Button>
+              <Button
+                variant="brand"
+                size="sm"
                 onClick={onSubmitDraft}
                 disabled={!canSend || isSubmitting || isDeletingDraft}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  !canSend || isSubmitting || isDeletingDraft
-                    ? 'opacity-60 cursor-not-allowed bg-emerald-500/10 text-emerald-200 border border-emerald-500/20'
-                    : 'bg-emerald-500 text-black hover:bg-emerald-400'
-                }`}
                 title={!canSend ? sendReason || 'Corrija o template antes de enviar' : 'Enviar pra Meta'}
               >
                 {isSubmitting ? (
@@ -218,11 +214,12 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
                   <Send size={14} />
                 )}
                 Enviar pra Meta
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost-destructive"
+                size="icon-sm"
                 onClick={onDeleteDraft}
                 disabled={isSubmitting || isDeletingDraft}
-                className="p-2 text-gray-500 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors"
                 title="Excluir rascunho"
               >
                 {isDeletingDraft ? (
@@ -230,33 +227,36 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
                 ) : (
                   <Trash2 size={16} />
                 )}
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
-                onClick={onDeleteClick}
-                className="p-2 text-gray-500 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors"
-                title="Deletar template"
-              >
-                <Trash2 size={16} />
-              </button>
-              <button
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={onViewDetails}
-                className="p-2 text-gray-500 hover:text-emerald-200 hover:bg-emerald-500/10 rounded-lg transition-colors"
                 title="Ver detalhes"
               >
                 <Eye size={16} />
-              </button>
+              </Button>
               {template.status === 'APPROVED' && onCreateCampaign && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={onCreateCampaign}
-                  className="p-2 text-gray-500 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
                   title="Criar campanha com este template"
                 >
                   <Megaphone size={16} />
-                </button>
+                </Button>
               )}
+              <Button
+                variant="ghost-destructive"
+                size="icon-sm"
+                onClick={onDeleteClick}
+                title="Deletar template"
+              >
+                <Trash2 size={16} />
+              </Button>
             </>
           )}
         </div>
@@ -264,3 +264,25 @@ export const TemplateTableRow: React.FC<TemplateTableRowProps> = ({
     </tr>
   );
 };
+
+// Memoização com comparação customizada para evitar re-renders desnecessários
+// Compara apenas props que afetam o visual, ignora funções (mudam a cada render do parent)
+export const TemplateTableRow = React.memo(TemplateTableRowComponent, (prev, next) => {
+  // Se qualquer prop visual mudou, deve re-renderizar (retorna false)
+  if (prev.template.id !== next.template.id) return false;
+  if (prev.template.name !== next.template.name) return false;
+  if (prev.template.status !== next.template.status) return false;
+  if (prev.template.category !== next.template.category) return false;
+  if (prev.template.language !== next.template.language) return false;
+  if (prev.template.content !== next.template.content) return false;
+  if (prev.template.lastUpdated !== next.template.lastUpdated) return false;
+  if (prev.isManualDraft !== next.isManualDraft) return false;
+  if (prev.isRowSelected !== next.isRowSelected) return false;
+  if (prev.isSubmitting !== next.isSubmitting) return false;
+  if (prev.isDeletingDraft !== next.isDeletingDraft) return false;
+  if (prev.canSend !== next.canSend) return false;
+  if (prev.sendReason !== next.sendReason) return false;
+
+  // Se chegou aqui, nada visual mudou - pode pular o re-render
+  return true;
+});

@@ -1,21 +1,42 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { contactService } from '../services';
 import { Contact, ContactStatus } from '../types';
 import { customFieldService } from '../services/customFieldService';
-import { getSupabaseBrowser } from '../lib/supabase';
 import { PAGINATION, CACHE } from '@/lib/constants';
-import { invalidateContacts, invalidateContact } from '@/lib/query-invalidation';
+import { invalidateContacts } from '@/lib/query-invalidation';
 import {
   normalizeEmailForUpdate,
   sanitizeCustomFieldsForUpdate,
-  toggleContactSelection,
-  toggleSelectAllContacts,
-  clearContactSelection,
-  selectAllContactsGlobal,
 } from '@/lib/business/contact';
+import { useContactSelection } from './useContactSelection';
+
+// =============================================================================
+// QUERY KEY HELPERS - Normalized for consistency
+// =============================================================================
+
+interface ContactsQueryParams {
+  page: number
+  search: string
+  status: ContactStatus | 'ALL' | 'SUPPRESSED'
+  tag: string
+}
+
+/**
+ * Creates a normalized query key for contacts list
+ * Ensures consistent cache hits regardless of parameter order
+ */
+const createContactsQueryKey = (params: ContactsQueryParams) => [
+  'contacts',
+  {
+    page: params.page,
+    search: (params.search || '').trim().toLowerCase(),
+    status: params.status || 'ALL',
+    tag: params.tag || 'ALL',
+  }
+] as const;
 
 export const useContactsController = () => {
   const queryClient = useQueryClient();
@@ -23,12 +44,11 @@ export const useContactsController = () => {
   // Em alguns ambientes de teste o mock pode retornar null/undefined.
   const editFromUrl = (searchParams as any)?.get?.('edit') as string | null;
 
-  // UI State
+  // UI State - Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ContactStatus | 'ALL' | 'SUPPRESSED'>('ALL');
   const [tagFilter, setTagFilter] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -42,7 +62,15 @@ export const useContactsController = () => {
   const [importReport, setImportReport] = useState<string | null>(null);
 
   // --- Queries ---
-  const contactsQueryKey = ['contacts', { page: currentPage, search: searchTerm, status: statusFilter, tag: tagFilter }];
+  // Query key normalizada para consistência de cache
+  const queryParams: ContactsQueryParams = {
+    page: currentPage,
+    search: searchTerm,
+    status: statusFilter,
+    tag: tagFilter,
+  };
+  const contactsQueryKey = createContactsQueryKey(queryParams);
+
   const contactsQuery = useQuery({
     queryKey: contactsQueryKey,
     queryFn: () => contactService.list({
@@ -95,36 +123,8 @@ export const useContactsController = () => {
     queryClient.invalidateQueries({ queryKey: ['customFields'] });
   };
 
-  // --- Realtime Subscription ---
-  useEffect(() => {
-    const supabaseClient = getSupabaseBrowser();
-    if (!supabaseClient) return;
-
-    const channel = supabaseClient
-      .channel('contacts-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'contacts' },
-        (payload: any) => {
-          const newRow = payload?.new ?? null;
-          const oldRow = payload?.old ?? null;
-          const contactId = newRow?.id || oldRow?.id;
-
-          // Dados paginados: invalidar é mais seguro do que patch local
-          queryClient.invalidateQueries({ queryKey: ['contacts'] });
-          queryClient.invalidateQueries({ queryKey: ['contactStats'] });
-          queryClient.invalidateQueries({ queryKey: ['contactTags'] });
-          if (contactId) {
-            queryClient.invalidateQueries({ queryKey: ['contact', contactId] });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabaseClient.removeChannel(channel);
-    };
-  }, [queryClient]);
+  // NOTA: Realtime agora é gerenciado pelo CentralizedRealtimeProvider
+  // que invalida queries automaticamente via debounce
 
   // --- Mutations ---
   const addMutation = useMutation({
@@ -142,52 +142,145 @@ export const useContactsController = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Omit<Contact, 'id'>> }) =>
       contactService.update(id, data),
+    // Optimistic update: atualiza UI imediatamente
+    onMutate: async ({ id, data }) => {
+      // Cancela queries em andamento para evitar overwrites
+      await queryClient.cancelQueries({ queryKey: ['contacts'] });
+      await queryClient.cancelQueries({ queryKey: ['contact', id] });
+
+      // Snapshot do estado anterior para rollback
+      const previousContacts = queryClient.getQueryData(contactsQueryKey);
+      const previousContact = queryClient.getQueryData(['contact', id]);
+
+      // Optimistic update na lista
+      queryClient.setQueryData(contactsQueryKey, (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data.map((c: Contact) =>
+            c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c
+          ),
+        };
+      });
+
+      // Optimistic update no contato individual
+      queryClient.setQueryData(['contact', id], (old: Contact | undefined) =>
+        old ? { ...old, ...data, updatedAt: new Date().toISOString() } : old
+      );
+
+      return { previousContacts, previousContact };
+    },
     onSuccess: (updated) => {
-      invalidateContacts(queryClient);
-      if (updated?.id) {
-        queryClient.invalidateQueries({ queryKey: ['contact', updated.id] });
+      // Atualiza cache com dados reais do servidor
+      if (updated) {
+        queryClient.setQueryData(['contact', updated.id], updated);
       }
+      // Invalida apenas stats (lista já foi atualizada)
+      queryClient.invalidateQueries({ queryKey: ['contactStats'] });
+      queryClient.invalidateQueries({ queryKey: ['contactTags'] });
+
       setIsEditModalOpen(false);
       setEditingContact(null);
       toast.success('Contato atualizado com sucesso!');
     },
-    onError: (error: any) => {
+    onError: (error: any, { id }, context) => {
+      // Rollback em caso de erro
+      if (context?.previousContacts) {
+        queryClient.setQueryData(contactsQueryKey, context.previousContacts);
+      }
+      if (context?.previousContact) {
+        queryClient.setQueryData(['contact', id], context.previousContact);
+      }
       toast.error(error.message || 'Erro ao atualizar contato');
-    }
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: contactService.delete,
+    // Optimistic delete: remove da UI imediatamente
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['contacts'] });
+
+      const previousContacts = queryClient.getQueryData(contactsQueryKey);
+
+      // Remove contato da lista otimisticamente
+      queryClient.setQueryData(contactsQueryKey, (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data.filter((c: Contact) => c.id !== id),
+          total: Math.max(0, (old.total || 0) - 1),
+        };
+      });
+
+      return { previousContacts };
+    },
     onSuccess: () => {
-      invalidateContacts(queryClient);
+      // Invalida stats após confirmação do servidor
+      queryClient.invalidateQueries({ queryKey: ['contactStats'] });
+      queryClient.invalidateQueries({ queryKey: ['contactTags'] });
+
       setIsDeleteModalOpen(false);
       setDeleteTarget(null);
       toast.success('Contato excluído com sucesso!');
     },
-    onError: (error: any) => {
+    onError: (error: any, _id, context) => {
+      // Rollback em caso de erro
+      if (context?.previousContacts) {
+        queryClient.setQueryData(contactsQueryKey, context.previousContacts);
+      }
       toast.error(error.message || 'Erro ao excluir contato');
-    }
+    },
   });
 
   const deleteManyMutation = useMutation({
     mutationFn: contactService.deleteMany,
+    // Optimistic bulk delete
+    onMutate: async (ids: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['contacts'] });
+
+      const previousContacts = queryClient.getQueryData(contactsQueryKey);
+      const idsSet = new Set(ids);
+
+      // Remove contatos da lista otimisticamente
+      queryClient.setQueryData(contactsQueryKey, (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data.filter((c: Contact) => !idsSet.has(c.id)),
+          total: Math.max(0, (old.total || 0) - ids.length),
+        };
+      });
+
+      return { previousContacts };
+    },
     onSuccess: (count) => {
-      invalidateContacts(queryClient);
+      // Invalida stats após confirmação do servidor
+      queryClient.invalidateQueries({ queryKey: ['contactStats'] });
+      queryClient.invalidateQueries({ queryKey: ['contactTags'] });
+
       setSelectedIds(new Set());
       setIsDeleteModalOpen(false);
       setDeleteTarget(null);
       toast.success(`${count} contatos excluídos com sucesso!`);
     },
-    onError: (error: any) => {
+    onError: (error: any, _ids, context) => {
+      // Rollback em caso de erro
+      if (context?.previousContacts) {
+        queryClient.setQueryData(contactsQueryKey, context.previousContacts);
+      }
       toast.error(error.message || 'Erro ao excluir contatos');
-    }
+    },
   });
 
   const importMutation = useMutation({
     mutationFn: contactService.import,
-    onSuccess: (count) => {
+    onSuccess: (result) => {
       invalidateContacts(queryClient);
-      toast.success(`${count} contatos importados com sucesso!`);
+      const parts: string[] = [];
+      if (result.inserted > 0) parts.push(`${result.inserted} novos`);
+      if (result.updated > 0) parts.push(`${result.updated} atualizados`);
+      toast.success(`Importação concluída: ${parts.join(', ') || '0 contatos'}`);
     },
     onError: () => toast.error('Erro ao importar contatos')
   });
@@ -221,54 +314,41 @@ export const useContactsController = () => {
     }
   }, [currentPage, totalPages]);
 
-  // Reset page when filters change
-  const handleSearchChange = (term: string) => {
+  // Reset page when filters change - memoizados para evitar re-renders
+  const handleSearchChange = useCallback((term: string) => {
     setSearchTerm(term);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleStatusFilterChange = (status: ContactStatus | 'ALL' | 'SUPPRESSED') => {
+  const handleStatusFilterChange = useCallback((status: ContactStatus | 'ALL' | 'SUPPRESSED') => {
     setStatusFilter(status);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleTagFilterChange = (tag: string) => {
+  const handleTagFilterChange = useCallback((tag: string) => {
     setTagFilter(tag);
     setCurrentPage(1);
-  };
+  }, []);
 
-  // --- Selection Logic ---
-  const toggleSelect = (id: string) => {
-    setSelectedIds(toggleContactSelection(selectedIds, id));
-  };
+  // --- Selection Logic (extracted to reusable hook) ---
+  const pageContactIds = useMemo(() => contacts.map(c => c.id), [contacts]);
+  const selectionFilters = useMemo(
+    () => ({ search: searchTerm, status: statusFilter, tag: tagFilter }),
+    [searchTerm, statusFilter, tagFilter]
+  );
+  const {
+    selectedIds,
+    setSelectedIds,
+    toggleSelect,
+    toggleSelectAll,
+    selectAllGlobal,
+    clearSelection,
+    isAllSelected,
+    isSomeSelected,
+  } = useContactSelection(pageContactIds, selectionFilters);
 
-  const toggleSelectAll = () => {
-    const pageIds = contacts.map(c => c.id);
-    const allOnPageSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.has(id));
-    setSelectedIds(toggleSelectAllContacts(selectedIds, pageIds, allOnPageSelected));
-  };
-
-  const selectAllGlobal = () => {
-    void contactService.getIds({
-      search: searchTerm.trim(),
-      status: statusFilter,
-      tag: tagFilter,
-    }).then((ids) => {
-      setSelectedIds(selectAllContactsGlobal(ids));
-    }).catch((error: any) => {
-      toast.error(error.message || 'Erro ao selecionar todos os contatos');
-    });
-  };
-
-  const clearSelection = () => {
-    setSelectedIds(clearContactSelection());
-  };
-
-  const isAllSelected = contacts.length > 0 && contacts.every(c => selectedIds.has(c.id));
-  const isSomeSelected = selectedIds.size > 0;
-
-  // --- Handlers ---
-  const handleAddContact = (contact: { name: string; phone: string; email?: string; tags: string; custom_fields?: Record<string, any> }) => {
+  // --- Handlers - memoizados para evitar re-renders ---
+  const handleAddContact = useCallback((contact: { name: string; phone: string; email?: string; tags: string; custom_fields?: Record<string, any> }) => {
     if (!contact.phone) {
       toast.error('Telefone é obrigatório');
       return;
@@ -289,41 +369,41 @@ export const useContactsController = () => {
       tags: contact.tags.split(',').map(t => t.trim()).filter(t => t),
       custom_fields: contact.custom_fields
     });
-  };
+  }, [addMutation]);
 
-  const handleEditContact = (contact: Contact) => {
+  const handleEditContact = useCallback((contact: Contact) => {
     setEditingContact(contact);
     setIsEditModalOpen(true);
-  };
+  }, []);
 
-  const handleUpdateContact = (data: { name: string; phone: string; email?: string; tags: string; status: ContactStatus; custom_fields?: Record<string, any> }) => {
+  const handleUpdateContact = useCallback((data: { name: string; phone: string; email?: string; tags: string; status: ContactStatus; custom_fields?: Record<string, any> }) => {
     if (!editingContact) return;
     updateMutation.mutate({
       id: editingContact.id,
       data: {
         name: data.name,
         phone: data.phone,
-        // Para “apagar” email, precisamos enviar null (undefined não altera no banco)
+        // Para "apagar" email, precisamos enviar null (undefined não altera no banco)
         email: normalizeEmailForUpdate(data.email),
         status: data.status,
         tags: data.tags.split(',').map(t => t.trim()).filter(t => t),
         custom_fields: sanitizeCustomFieldsForUpdate(data.custom_fields)
       }
     });
-  };
+  }, [editingContact, updateMutation]);
 
-  const handleDeleteClick = (id: string) => {
+  const handleDeleteClick = useCallback((id: string) => {
     setDeleteTarget({ type: 'single', id });
     setIsDeleteModalOpen(true);
-  };
+  }, []);
 
-  const handleBulkDeleteClick = () => {
+  const handleBulkDeleteClick = useCallback(() => {
     if (selectedIds.size === 0) return;
     setDeleteTarget({ type: 'bulk' });
     setIsDeleteModalOpen(true);
-  };
+  }, [selectedIds.size]);
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = useCallback(() => {
     if (!deleteTarget) return;
 
     if (deleteTarget.type === 'single' && deleteTarget.id) {
@@ -331,12 +411,12 @@ export const useContactsController = () => {
     } else if (deleteTarget.type === 'bulk') {
       deleteManyMutation.mutate(Array.from(selectedIds));
     }
-  };
+  }, [deleteTarget, deleteMutation, deleteManyMutation, selectedIds]);
 
-  const handleCancelDelete = () => {
+  const handleCancelDelete = useCallback(() => {
     setIsDeleteModalOpen(false);
     setDeleteTarget(null);
-  };
+  }, []);
 
   return {
     // Data
@@ -398,6 +478,6 @@ export const useContactsController = () => {
 
     // Import report
     importReport,
-    clearImportReport: () => setImportReport(null),
+    clearImportReport: useCallback(() => setImportReport(null), []),
   };
 };

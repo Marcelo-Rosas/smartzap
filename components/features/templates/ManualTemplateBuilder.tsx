@@ -12,6 +12,8 @@ import { StepConfig } from './builder/StepConfig'
 import { StepContent } from './builder/StepContent'
 import { StepButtons } from './builder/StepButtons'
 import { StepNavigation } from './builder/StepNavigation'
+import { PreviewDrawer } from './builder/PreviewDrawer'
+import { FloatingPreviewButton } from './builder/FloatingPreviewButton'
 
 // Utility functions and types
 import {
@@ -19,8 +21,6 @@ import {
   type HeaderFormat,
   type HeaderMediaPreview,
   type ButtonType,
-  panelClass,
-  panelCompactPadding,
   normalizeButtons,
   countButtonsByType,
   newButtonForType,
@@ -46,6 +46,7 @@ import {
   joinPhone,
 } from './utils/templateBuilderUtils'
 import { Input } from '@/components/ui/input'
+import { Container } from '@/components/ui/container'
 
 export function ManualTemplateBuilder({
   id,
@@ -66,6 +67,7 @@ export function ManualTemplateBuilder({
   const [spec, setSpec] = React.useState<Spec>(() => ensureBaseSpec(initialSpec))
   const [showDebug, setShowDebug] = React.useState(false)
   const [step, setStep] = React.useState(1)
+  const [isPreviewDrawerOpen, setIsPreviewDrawerOpen] = React.useState(false)
 
   const [headerMediaPreview, setHeaderMediaPreview] = React.useState<HeaderMediaPreview | null>(null)
   const headerMediaFileInputRef = React.useRef<HTMLInputElement | null>(null)
@@ -558,15 +560,15 @@ export function ManualTemplateBuilder({
                 }}
                 className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm transition ${
                   step === item.id
-                    ? 'border-emerald-400/40 bg-emerald-500/10 text-white'
-                    : 'border-white/10 bg-zinc-900/40 text-gray-400'
-                } ${!isStepEnabled ? 'cursor-not-allowed opacity-40' : 'hover:text-white'}`}
+                    ? 'border-emerald-600 dark:border-emerald-400/40 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-900 dark:text-white'
+                    : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] text-[var(--ds-text-muted)]'
+                } ${!isStepEnabled ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--ds-text-primary)]'}`}
               >
                 <span
                   className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-semibold leading-none ${
                     step === item.id
-                      ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
-                      : 'border-white/10 text-gray-400'
+                      ? 'border-emerald-600 dark:border-emerald-400 bg-emerald-200 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200'
+                      : 'border-[var(--ds-border-default)] text-[var(--ds-text-muted)]'
                   }`}
                 >
                   {item.id}
@@ -731,28 +733,28 @@ export function ManualTemplateBuilder({
         />
       </div>
 
-      {/* Right sidebar */}
-      <div className="space-y-6 lg:sticky lg:top-6 self-start">
+      {/* Right sidebar - hidden on mobile, visible on lg+ */}
+      <div className="hidden lg:block space-y-6 lg:sticky lg:top-6 self-start">
         <TemplatePreview spec={spec} headerMediaPreview={headerMediaPreview} />
 
-        <div className={`${panelClass} ${panelCompactPadding}`}>
+        <Container variant="default" padding="md">
           <details>
             <summary className="cursor-pointer list-none select-none flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Avancado</div>
-              <div className="text-xs text-gray-400">Abrir</div>
+              <div className="text-sm font-semibold text-[var(--ds-text-primary)]">Avancado</div>
+              <div className="text-xs text-[var(--ds-text-muted)]">Abrir</div>
             </summary>
 
             <div className="mt-4">
               {canShowMediaSample ? (
                 <div className="mb-4 space-y-2">
-                  <div className="text-xs font-medium text-gray-300">Midia do cabecalho (opcional)</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs font-medium text-[var(--ds-text-secondary)]">Midia do cabecalho (opcional)</div>
+                  <div className="text-xs text-[var(--ds-text-muted)]">
                     Se voce precisar, pode colar manualmente o identificador de midia usado como exemplo no template.
                   </div>
                   <Input
                     value={header?.example?.header_handle?.[0] || ''}
                     onChange={(e) => updateHeader({ ...header, example: { ...(header?.example || {}), header_handle: [e.target.value] } })}
-                    className="bg-zinc-950/40 border-white/10 text-white"
+                    className="bg-[var(--ds-bg-elevated)] border-[var(--ds-border-default)] text-[var(--ds-text-primary)]"
                     placeholder="Identificador (handle)"
                     disabled={isUploadingHeaderMedia}
                   />
@@ -764,18 +766,29 @@ export function ManualTemplateBuilder({
                 onClick={() => setShowDebug((v) => !v)}
                 className="w-full flex items-center justify-between text-left"
               >
-                <div className="text-sm font-semibold text-white">Debug</div>
-                <div className="text-xs text-gray-400">{showDebug ? 'Ocultar' : 'Ver JSON'}</div>
+                <div className="text-sm font-semibold text-[var(--ds-text-primary)]">Debug</div>
+                <div className="text-xs text-[var(--ds-text-muted)]">{showDebug ? 'Ocultar' : 'Ver JSON'}</div>
               </button>
               {showDebug ? (
-                <pre className="mt-3 text-xs text-gray-300 font-mono whitespace-pre-wrap wrap-break-word">
+                <pre className="mt-3 text-xs text-[var(--ds-text-secondary)] font-mono whitespace-pre-wrap wrap-break-word">
                   {JSON.stringify(spec, null, 2)}
                 </pre>
               ) : null}
             </div>
           </details>
-        </div>
+        </Container>
       </div>
+
+      {/* Floating preview button - visible only on mobile */}
+      <FloatingPreviewButton onClick={() => setIsPreviewDrawerOpen(true)} />
+
+      {/* Preview drawer for mobile */}
+      <PreviewDrawer
+        open={isPreviewDrawerOpen}
+        onOpenChange={setIsPreviewDrawerOpen}
+        spec={spec}
+        headerMediaPreview={headerMediaPreview}
+      />
     </div>
   )
 }

@@ -26,12 +26,17 @@ export async function GET(request: Request) {
     const offsetParam = url.searchParams.get('offset')
     const search = url.searchParams.get('search') || ''
     const status = url.searchParams.get('status') || ''
+    const folderId = url.searchParams.get('folderId') || null  // null = todas, 'none' = sem pasta
+    const tagIdsParam = url.searchParams.get('tagIds') || ''  // comma-separated
+    const tagIds = tagIdsParam ? tagIdsParam.split(',').filter(Boolean) : null
 
     const wantsPaged =
       limitParam !== null ||
       offsetParam !== null ||
       search.length > 0 ||
-      status.length > 0
+      status.length > 0 ||
+      folderId !== null ||
+      tagIds !== null
 
     if (wantsPaged) {
       const limitRaw = Number(limitParam)
@@ -44,6 +49,8 @@ export async function GET(request: Request) {
         offset,
         search,
         status,
+        folderId,
+        tagIds,
       })
 
       return NextResponse.json(
@@ -118,6 +125,7 @@ export async function POST(request: Request) {
       templateVariables: data.templateVariables,  // Now properly validated by Zod
       flowId: data.flowId,  // Flow/MiniApp reference (se o template usar Flow)
       flowName: data.flowName,
+      folderId: data.folderId,  // Organização por pasta
     })
 
     // If contacts were provided, add them to campaign_contacts

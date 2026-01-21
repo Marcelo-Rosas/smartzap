@@ -1,4 +1,14 @@
-import { Campaign, CampaignStatus, Message, MessageStatus } from '../types';
+import {
+  Campaign,
+  CampaignStatus,
+  Message,
+  MessageStatus,
+  CampaignFolder,
+  CampaignTag,
+  CreateCampaignFolderDTO,
+  UpdateCampaignFolderDTO,
+  CreateCampaignTagDTO,
+} from '../types';
 import type { MissingParamDetail } from '../lib/whatsapp/template-contract';
 
 interface CreateCampaignInput {
@@ -20,6 +30,10 @@ interface CreateCampaignInput {
   // Flow/MiniApp fields
   flowId?: string | null;
   flowName?: string | null;
+  // Organização
+  folderId?: string | null;
+  // Se true, salva como rascunho sem disparar
+  isDraft?: boolean;
 }
 
 export interface CampaignListParams {
@@ -27,6 +41,8 @@ export interface CampaignListParams {
   offset: number;
   search?: string;
   status?: string;
+  folderId?: string | null;  // null = todas, 'none' = sem pasta
+  tagIds?: string[];         // IDs das tags para filtrar
 }
 
 export interface CampaignListResult {
@@ -107,6 +123,8 @@ export const campaignService = {
     searchParams.set('offset', String(params.offset));
     if (params.search) searchParams.set('search', params.search);
     if (params.status && params.status !== 'All') searchParams.set('status', params.status);
+    if (params.folderId) searchParams.set('folderId', params.folderId);
+    if (params.tagIds && params.tagIds.length > 0) searchParams.set('tagIds', params.tagIds.join(','));
 
     const response = await fetch(`/api/campaigns?${searchParams.toString()}`);
     if (!response.ok) {
@@ -198,7 +216,7 @@ export const campaignService = {
   },
 
   create: async (input: CreateCampaignInput): Promise<Campaign> => {
-    const { name, templateName, recipients, selectedContacts, selectedContactIds, scheduledAt, templateVariables, flowId, flowName } = input;
+    const { name, templateName, recipients, selectedContacts, selectedContactIds, scheduledAt, templateVariables, flowId, flowName, folderId, isDraft } = input;
 
     // 1. Create campaign in Database (source of truth) with contacts
     const response = await fetch('/api/campaigns', {
@@ -215,6 +233,7 @@ export const campaignService = {
         status: scheduledAt ? CampaignStatus.SCHEDULED : CampaignStatus.SENDING,
         flowId,   // Flow/MiniApp ID (se template usar Flow)
         flowName, // Flow name para exibição
+        folderId, // Organização por pasta
       }),
     });
 
@@ -224,13 +243,19 @@ export const campaignService = {
 
     const newCampaign = await response.json();
 
-    // 2. If scheduled for later, don't dispatch now
+    // 2. If saving as draft, don't dispatch - keep as DRAFT status
+    if (isDraft) {
+      console.log(`Campaign ${newCampaign.id} saved as draft`);
+      return newCampaign;
+    }
+
+    // 3. If scheduled for later, don't dispatch now
     if (scheduledAt) {
       console.log(`Campaign ${newCampaign.id} scheduled for ${scheduledAt}`);
       return newCampaign;
     }
 
-    // 3. Dispatch to Backend immediately (Execution)
+    // 4. Dispatch to Backend immediately (Execution)
     // Se o dispatch falhar (ex.: QSTASH_TOKEN ausente), precisamos falhar visivelmente
     // para o usuário não ficar com campanha "Enviando" sem nada sair.
     if (selectedContacts && selectedContacts.length > 0) {
@@ -349,12 +374,10 @@ export const campaignService = {
 
     const campaign = await updateResponse.json();
 
-    // Notify backend to pause queue processing
-    try {
-      await fetch(`/api/campaign/${id}/pause`, { method: 'POST' });
-    } catch (error) {
-      console.error('Failed to pause campaign on backend:', error);
-    }
+    // Fire-and-forget: notify backend to pause queue processing
+    // Não bloqueia a UI enquanto o backend processa
+    fetch(`/api/campaign/${id}/pause`, { method: 'POST' })
+      .catch((error) => console.error('Failed to pause campaign on backend:', error));
 
     return campaign;
   },
@@ -382,12 +405,10 @@ export const campaignService = {
 
     const updatedCampaign = await updateResponse.json();
 
-    // Notify backend to resume processing
-    try {
-      await fetch(`/api/campaign/${id}/resume`, { method: 'POST' });
-    } catch (error) {
-      console.error('Failed to resume campaign on backend:', error);
-    }
+    // Fire-and-forget: notify backend to resume processing
+    // Não bloqueia a UI enquanto o backend processa
+    fetch(`/api/campaign/${id}/resume`, { method: 'POST' })
+      .catch((error) => console.error('Failed to resume campaign on backend:', error));
 
     return updatedCampaign;
   },
@@ -407,6 +428,7 @@ export const campaignService = {
   },
 
   // Start a scheduled or draft campaign immediately
+  // Optimized: retorna resultado do PATCH diretamente ao invés de fazer getById extra
   start: async (id: string): Promise<Campaign | undefined> => {
     console.log('🚀 Starting campaign:', { id });
 
@@ -431,7 +453,7 @@ export const campaignService = {
       return undefined
     }
 
-    // Atualiza estado imediatamente no DB para a UI não ficar “Iniciar Agora” enquanto já está enviando.
+    // Atualiza estado imediatamente no DB para a UI não ficar "Iniciar Agora" enquanto já está enviando.
     // O workflow também setará status/startedAt, mas isso pode demorar alguns segundos.
     const nowIso = new Date().toISOString()
 
@@ -450,9 +472,12 @@ export const campaignService = {
 
     if (!updateResponse.ok) {
       console.warn('Failed to clear scheduled fields after dispatch');
+      // Retorna dados originais com status atualizado otimisticamente
+      return { ...campaignData, status: CampaignStatus.SENDING };
     }
 
-    return campaignService.getById(id);
+    // Retorna diretamente o resultado do PATCH (evita getById extra)
+    return updateResponse.json();
   },
 
   // Cancel a scheduled campaign (QStash one-shot)
@@ -471,14 +496,19 @@ export const campaignService = {
   },
 
   // Update campaign stats from real-time polling
+  // Optimized: fetch realStatus and campaign in parallel
   updateStats: async (id: string): Promise<Campaign | undefined> => {
-    const realStatus = await campaignService.getRealStatus(id);
+    // Parallel fetch - both requests start at the same time
+    const [realStatus, campaign] = await Promise.all([
+      campaignService.getRealStatus(id),
+      campaignService.getById(id),
+    ]);
 
+    // If no campaign, return early
+    if (!campaign) return undefined;
+
+    // If realStatus has data, update the campaign
     if (realStatus && realStatus.stats.total > 0) {
-      // Get campaign from Database
-      const campaign = await campaignService.getById(id);
-      if (!campaign) return undefined;
-
       const isComplete = realStatus.stats.sent + realStatus.stats.failed >= campaign.recipients;
 
       // Update in Database
@@ -503,7 +533,8 @@ export const campaignService = {
       return response.json();
     }
 
-    return campaignService.getById(id);
+    // No realStatus data, return campaign as-is
+    return campaign;
   },
 
   // Get traces for a campaign (debug/executions)
@@ -582,5 +613,131 @@ export const campaignService = {
       events: Array.isArray(payload?.events) ? payload.events : [],
       pagination: { total: typeof payload?.pagination?.total === 'number' ? payload.pagination.total : 0 },
     }
+  },
+
+  // ============================================================================
+  // FOLDERS
+  // ============================================================================
+
+  listFolders: async (): Promise<{
+    folders: CampaignFolder[];
+    totalCount: number;
+    unfiledCount: number;
+  }> => {
+    const response = await fetch('/api/campaigns/folders');
+    if (!response.ok) {
+      console.error('Failed to fetch folders:', response.statusText);
+      return { folders: [], totalCount: 0, unfiledCount: 0 };
+    }
+    return response.json();
+  },
+
+  createFolder: async (dto: CreateCampaignFolderDTO): Promise<CampaignFolder> => {
+    const response = await fetch('/api/campaigns/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dto),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Falha ao criar pasta');
+    }
+    return response.json();
+  },
+
+  updateFolder: async (id: string, dto: UpdateCampaignFolderDTO): Promise<CampaignFolder> => {
+    const response = await fetch(`/api/campaigns/folders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dto),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Falha ao atualizar pasta');
+    }
+    return response.json();
+  },
+
+  deleteFolder: async (id: string): Promise<void> => {
+    const response = await fetch(`/api/campaigns/folders/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Falha ao deletar pasta');
+    }
+  },
+
+  // ============================================================================
+  // TAGS
+  // ============================================================================
+
+  listTags: async (): Promise<CampaignTag[]> => {
+    const response = await fetch('/api/campaigns/tags');
+    if (!response.ok) {
+      console.error('Failed to fetch tags:', response.statusText);
+      return [];
+    }
+    return response.json();
+  },
+
+  createTag: async (dto: CreateCampaignTagDTO): Promise<CampaignTag> => {
+    const response = await fetch('/api/campaigns/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dto),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Falha ao criar tag');
+    }
+    return response.json();
+  },
+
+  deleteTag: async (id: string): Promise<void> => {
+    const response = await fetch(`/api/campaigns/tags/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Falha ao deletar tag');
+    }
+  },
+
+  // ============================================================================
+  // CAMPAIGN ORGANIZATION
+  // ============================================================================
+
+  updateCampaignFolder: async (campaignId: string, folderId: string | null): Promise<Campaign> => {
+    const response = await fetch(`/api/campaigns/${campaignId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderId }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Falha ao atualizar pasta da campanha');
+    }
+    return response.json();
+  },
+
+  updateCampaignTags: async (campaignId: string, tagIds: string[]): Promise<Campaign> => {
+    const response = await fetch(`/api/campaigns/${campaignId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagIds }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Falha ao atualizar tags da campanha');
+    }
+    return response.json();
   },
 };

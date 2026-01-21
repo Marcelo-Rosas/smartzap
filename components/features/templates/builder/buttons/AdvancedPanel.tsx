@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
+import { Container } from '@/components/ui/container'
 import { Spec } from './types'
-import { PANEL_CLASS, PANEL_COMPACT_PADDING } from './constants'
 import { LimitedTimeOfferPanel } from './panels/LimitedTimeOfferPanel'
 import { AuthenticationPanel } from './panels/AuthenticationPanel'
 import { CarouselPanel } from './panels/CarouselPanel'
@@ -30,14 +30,14 @@ export function AdvancedPanel({
   const isAuthentication = spec.category === 'AUTHENTICATION'
 
   return (
-    <div className={`${PANEL_CLASS} ${PANEL_COMPACT_PADDING}`}>
+    <Container variant="default" padding="md">
       <details>
         <summary className="cursor-pointer list-none select-none flex items-center justify-between">
           <div>
-            <div className="text-sm font-semibold text-white">Avancado</div>
-            <div className="text-xs text-gray-400">Opcoes menos comuns (LTO, Auth e Carousel).</div>
+            <div className="text-sm font-semibold text-[var(--ds-text-primary)]">Avancado</div>
+            <div className="text-xs text-[var(--ds-text-secondary)]">Opcoes menos comuns (LTO, Auth e Carousel).</div>
           </div>
-          <div className="text-xs text-gray-500">Abrir</div>
+          <div className="text-xs text-[var(--ds-text-muted)]">Abrir</div>
         </summary>
 
         <div className="mt-4 space-y-4">
@@ -57,7 +57,7 @@ export function AdvancedPanel({
           )}
 
           {!isMarketing && !isAuthentication && (
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-[var(--ds-text-muted)]">
               Sem opcoes avancadas especificas para esta categoria.
             </div>
           )}
@@ -69,6 +69,6 @@ export function AdvancedPanel({
           />
         </div>
       </details>
-    </div>
+    </Container>
   )
 }

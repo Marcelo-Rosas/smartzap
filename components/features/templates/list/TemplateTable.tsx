@@ -2,9 +2,12 @@
 
 import React from 'react';
 import { FileText, Check } from 'lucide-react';
+import { Container } from '@/components/ui/container';
 import { Template } from '../../../../types';
 import { TemplateTableRow } from './TemplateTableRow';
+import { TemplateCardList } from './TemplateCard';
 import { StatusFilterType } from './types';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 export interface TemplateTableProps {
   templates: Template[];
@@ -66,6 +69,8 @@ export const TemplateTable: React.FC<TemplateTableProps> = ({
   manualDraftCount,
   selectableMetaCount,
 }) => {
+  const isMobile = useIsMobile();
+
   const isManualDraft = (t: Template) => manualDraftIds?.has(t.id);
 
   const canSendDraft = (t: Template) => {
@@ -89,11 +94,35 @@ export const TemplateTable: React.FC<TemplateTableProps> = ({
 
   const hasItems = statusFilter === 'DRAFT' ? manualDraftCount > 0 : selectableMetaCount > 0;
 
+  // Mobile: render cards instead of table
+  if (isMobile) {
+    return (
+      <TemplateCardList
+        templates={templates}
+        isLoading={isLoading}
+        manualDraftIds={manualDraftIds}
+        manualDraftSendStateById={manualDraftSendStateById}
+        selectedManualDraftIds={selectedManualDraftIds}
+        selectedMetaTemplates={selectedMetaTemplates}
+        onToggleManualDraft={onToggleManualDraft}
+        onToggleMetaTemplate={onToggleMetaTemplate}
+        submittingManualDraftId={submittingManualDraftId}
+        deletingManualDraftId={deletingManualDraftId}
+        submitManualDraft={submitManualDraft}
+        deleteManualDraft={deleteManualDraft}
+        onViewDetails={onViewDetails}
+        onDeleteClick={onDeleteClick}
+        onCreateCampaign={onCreateCampaign}
+      />
+    );
+  }
+
+  // Desktop: render table
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden">
+    <Container variant="default" padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-950/40 border-b border-white/10 text-gray-500 uppercase tracking-widest text-xs">
+          <thead className="bg-[var(--ds-bg-elevated)] border-b border-[var(--ds-border-default)] text-[var(--ds-text-muted)] uppercase tracking-widest text-xs">
             <tr>
               <th className="px-4 py-4 w-10">
                 <button
@@ -101,17 +130,17 @@ export const TemplateTable: React.FC<TemplateTableProps> = ({
                   disabled={isHeaderDisabled}
                   className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
                     isHeaderDisabled
-                      ? 'border-white/10 opacity-40 cursor-not-allowed'
+                      ? 'border-[var(--ds-border-default)] opacity-40 cursor-not-allowed'
                       : isHeaderChecked
                         ? statusFilter === 'DRAFT'
                           ? 'bg-amber-500 border-amber-500'
                           : 'bg-emerald-500 border-emerald-500'
-                        : 'border-white/20 hover:border-white/40'
+                        : 'border-[var(--ds-border-default)] hover:border-[var(--ds-border-strong)]'
                   }`}
                 >
                   {isHeaderChecked && hasItems && (
                     <Check
-                      className={`w-3 h-3 ${statusFilter === 'DRAFT' ? 'text-black' : 'text-white'}`}
+                      className={`w-3 h-3 ${statusFilter === 'DRAFT' ? 'text-black' : 'text-[var(--ds-text-primary)]'}`}
                     />
                   )}
                 </button>
@@ -125,21 +154,21 @@ export const TemplateTable: React.FC<TemplateTableProps> = ({
               <th className="px-4 py-4 font-medium text-right">Acoes</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/10">
+          <tbody className="divide-y divide-[var(--ds-border-default)]">
             {isLoading ? (
               <tr>
-                <td colSpan={8} className="px-6 py-16 text-center text-gray-400">
+                <td colSpan={8} className="px-6 py-16 text-center text-[var(--ds-text-secondary)]">
                   Carregando templates...
                 </td>
               </tr>
             ) : templates.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-6 py-16 text-center">
-                  <div className="w-16 h-16 bg-zinc-950/40 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-600">
+                  <div className="w-16 h-16 bg-[var(--ds-bg-elevated)] rounded-full flex items-center justify-center mx-auto mb-4 text-[var(--ds-text-muted)]">
                     <FileText size={32} />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-1">Nenhum template encontrado</h3>
-                  <p className="text-gray-500 text-sm">
+                  <h3 className="text-lg font-bold text-[var(--ds-text-primary)] mb-1">Nenhum template encontrado</h3>
+                  <p className="text-[var(--ds-text-muted)] text-sm">
                     Tente ajustar os filtros ou clique em sincronizar.
                   </p>
                 </td>
@@ -179,6 +208,6 @@ export const TemplateTable: React.FC<TemplateTableProps> = ({
           </tbody>
         </table>
       </div>
-    </div>
+    </Container>
   );
 };

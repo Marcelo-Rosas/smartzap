@@ -12,6 +12,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { WebhookSubscription } from './types';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 interface WebhookSubscriptionStatusProps {
   webhookSubscription?: WebhookSubscription | null;
@@ -51,15 +53,15 @@ export function WebhookSubscriptionStatus({
   const isLoading = webhookSubscriptionLoading || webhookSubscriptionMutating;
 
   return (
-    <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-4 mb-6">
+    <div className="bg-[var(--ds-bg-elevated)] border border-[var(--ds-border-default)] rounded-xl p-4 mb-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h4 className="font-medium text-white mb-1 flex items-center gap-2">
-            <MessageSquare size={16} className="text-emerald-400" />
+          <h4 className="font-medium text-[var(--ds-text-primary)] mb-1 flex items-center gap-2">
+            <MessageSquare size={16} className="text-[var(--ds-status-success-text)]" />
             Inscrição do webhook (campo:{' '}
-            <span className="font-mono text-xs text-emerald-300">messages</span>)
+            <span className="font-mono text-xs text-[var(--ds-status-success-text)]">messages</span>)
           </h4>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-[var(--ds-text-secondary)]">
             Isso autoriza a Meta a enviar eventos de <strong>mensagens</strong> para o seu
             webhook. É independente do override do número (Prioridade #1).
           </p>
@@ -68,7 +70,7 @@ export function WebhookSubscriptionStatus({
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+          className="p-2 text-[var(--ds-text-muted)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)] rounded-lg transition-colors"
           title="Atualizar status"
         >
           <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
@@ -79,39 +81,34 @@ export function WebhookSubscriptionStatus({
         <div className="flex items-center gap-2 text-sm">
           {webhookSubscriptionLoading ? (
             <>
-              <Loader2 size={16} className="animate-spin text-gray-400" />
-              <span className="text-gray-400">Consultando status…</span>
+              <Loader2 size={16} className="animate-spin text-[var(--ds-text-muted)]" />
+              <span className="text-[var(--ds-text-muted)]">Consultando status…</span>
             </>
           ) : webhookSubscription?.ok ? (
             webhookSubscription.messagesSubscribed ? (
               <>
-                <CheckCircle2 size={16} className="text-emerald-400" />
-                <span className="text-emerald-300">Ativo</span>
-                <span className="text-gray-500">·</span>
-                <span className="text-gray-400 text-xs">
+                <StatusBadge status="success" showDot>Ativo</StatusBadge>
+                <span className="text-[var(--ds-text-muted)]">·</span>
+                <span className="text-[var(--ds-text-secondary)] text-xs">
                   WABA: {webhookSubscription.wabaId}
                 </span>
               </>
             ) : (
               <>
-                <AlertCircle size={16} className="text-amber-400" />
-                <span className="text-amber-300">Inativo (via API)</span>
-                <span className="text-gray-500">·</span>
-                <span className="text-gray-400 text-xs">
+                <StatusBadge status="warning" showDot>Inativo (via API)</StatusBadge>
+                <span className="text-[var(--ds-text-muted)]">·</span>
+                <span className="text-[var(--ds-text-secondary)] text-xs">
                   WABA: {webhookSubscription.wabaId}
                 </span>
               </>
             )
           ) : (
-            <>
-              <AlertTriangle size={16} className="text-red-400" />
-              <span className="text-red-300">Erro ao consultar</span>
-            </>
+            <StatusBadge status="error" showDot>Erro ao consultar</StatusBadge>
           )}
         </div>
 
         {webhookSubscription && !webhookSubscriptionLoading && webhookSubscription.ok && (
-          <div className="text-[11px] text-gray-500">
+          <div className="text-[11px] text-[var(--ds-text-muted)]">
             Campos ativos:{' '}
             {webhookSubscription.subscribedFields?.length
               ? webhookSubscription.subscribedFields.join(', ')
@@ -123,27 +120,31 @@ export function WebhookSubscriptionStatus({
           !webhookSubscriptionLoading &&
           webhookSubscription.ok &&
           !webhookSubscription.messagesSubscribed && (
-            <div className="text-[11px] text-amber-300/70 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-              Se no painel da Meta estiver "Ativo" e aqui não, pode haver atraso de propagação
-              ou permissões do token. Clique em "Atualizar status" ou use "Ativar messages"
-              para forçar via API.
-            </div>
+            <Alert variant="warning" className="py-2">
+              <AlertDescription className="text-[11px] mt-0">
+                Se no painel da Meta estiver "Ativo" e aqui não, pode haver atraso de propagação
+                ou permissões do token. Clique em "Atualizar status" ou use "Ativar messages"
+                para forçar via API.
+              </AlertDescription>
+            </Alert>
           )}
 
         {webhookSubscription &&
           !webhookSubscriptionLoading &&
           !webhookSubscription.ok &&
           webhookSubscription.error && (
-            <div className="text-xs text-red-300/90 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              {webhookSubscription.error}
-            </div>
+            <Alert variant="error" className="py-2">
+              <AlertDescription className="text-xs mt-0">
+                {webhookSubscription.error}
+              </AlertDescription>
+            </Alert>
           )}
 
         <div className="flex flex-wrap gap-2">
           <button
             onClick={handleSubscribe}
             disabled={isLoading || !onSubscribe}
-            className="h-10 px-3 bg-emerald-500 hover:bg-emerald-400 text-black font-medium rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
+            className="h-10 px-3 bg-[var(--ds-status-success)] hover:opacity-90 text-white font-medium rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
             title="Inscrever messages via API"
           >
             {webhookSubscriptionMutating ? (
@@ -157,7 +158,7 @@ export function WebhookSubscriptionStatus({
           <button
             onClick={handleUnsubscribe}
             disabled={isLoading || !onUnsubscribe}
-            className="h-10 px-3 bg-zinc-800 hover:bg-zinc-700 border border-white/10 rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
+            className="h-10 px-3 bg-[var(--ds-bg-surface)] hover:bg-[var(--ds-bg-hover)] border border-[var(--ds-border-default)] rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
             title="Desinscrever (remover subscription)"
           >
             {webhookSubscriptionMutating ? (

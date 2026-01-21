@@ -3,6 +3,8 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { CalendarStatusSectionProps } from './types';
+import { Container } from '@/components/ui/container';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 export function CalendarStatusSection({
   calendarAuthLoading,
@@ -16,24 +18,26 @@ export function CalendarStatusSection({
   setIsCalendarWizardOpen,
 }: CalendarStatusSectionProps) {
   return (
-    <div className="mt-5 rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+    <Container variant="subtle" padding="sm" className="mt-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-sm font-semibold text-white">Google Calendar</div>
-          <div className="mt-1 text-xs text-gray-400">
-            {calendarAuthLoading
-              ? 'Verificando...'
-              : calendarAuthStatus?.connected
-                ? 'Conectado'
-                : 'Desconectado'}
+          <div className="text-sm font-semibold text-[var(--ds-text-primary)]">Google Calendar</div>
+          <div className="mt-1">
+            {calendarAuthLoading ? (
+              <span className="text-xs text-[var(--ds-text-secondary)]">Verificando...</span>
+            ) : (
+              <StatusBadge status={calendarAuthStatus?.connected ? 'success' : 'default'} showDot>
+                {calendarAuthStatus?.connected ? 'Conectado' : 'Desconectado'}
+              </StatusBadge>
+            )}
           </div>
           {calendarAuthStatus?.calendar?.calendarSummary && (
-            <div className="mt-2 text-xs text-gray-400">
+            <div className="mt-2 text-xs text-[var(--ds-text-secondary)]">
               Calendario: {calendarAuthStatus.calendar.calendarSummary}
             </div>
           )}
           {calendarAuthStatus?.connected && (
-            <div className="mt-2 text-xs text-gray-400">
+            <div className="mt-2 text-xs text-[var(--ds-text-secondary)]">
               Conta: {calendarAuthStatus?.calendar?.accountEmail || 'nao disponivel'}
             </div>
           )}
@@ -42,7 +46,7 @@ export function CalendarStatusSection({
               href={calendarTestResult.link}
               target="_blank"
               rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-200 hover:text-emerald-100"
+              className="mt-2 inline-flex items-center gap-1 text-xs text-[var(--ds-status-success-text)] hover:opacity-80"
             >
               <ExternalLink size={12} />
               Evento de teste criado
@@ -54,7 +58,7 @@ export function CalendarStatusSection({
             </div>
           )}
           {!calendarAuthStatus?.connected && (
-            <div className="mt-2 text-xs text-gray-500">
+            <div className="mt-2 text-xs text-[var(--ds-text-muted)]">
               Conecte uma vez para liberar o agendamento no WhatsApp.
             </div>
           )}
@@ -63,7 +67,7 @@ export function CalendarStatusSection({
           <button
             type="button"
             onClick={handlePrimaryCalendarAction}
-            className="h-9 px-4 rounded-lg bg-emerald-500/90 text-white text-xs font-medium hover:bg-emerald-500 transition-colors"
+            className="h-9 px-4 rounded-lg bg-primary-600 text-white hover:bg-primary-500 dark:bg-white dark:text-black dark:hover:bg-neutral-100 text-xs font-medium transition-colors"
           >
             {calendarAuthStatus?.connected ? 'Gerenciar conexao' : 'Conectar Google Calendar'}
           </button>
@@ -76,7 +80,7 @@ export function CalendarStatusSection({
                   setCalendarWizardError(null);
                   setIsCalendarWizardOpen(true);
                 }}
-                className="h-9 px-3 rounded-lg border border-white/10 bg-white/5 text-xs text-white hover:bg-white/10 transition-colors"
+                className="h-9 px-3 rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-hover)] text-xs text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-surface)] transition-colors"
               >
                 Trocar calendario
               </button>
@@ -84,7 +88,7 @@ export function CalendarStatusSection({
                 type="button"
                 onClick={handleCalendarTestEvent}
                 disabled={calendarTestLoading}
-                className="h-9 px-3 rounded-lg border border-white/10 bg-white/5 text-xs text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                className="h-9 px-3 rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-hover)] text-xs text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-surface)] transition-colors disabled:opacity-50"
               >
                 {calendarTestLoading ? 'Testando...' : 'Testar evento'}
               </button>
@@ -92,6 +96,6 @@ export function CalendarStatusSection({
           )}
         </div>
       </div>
-    </div>
+    </Container>
   );
 }

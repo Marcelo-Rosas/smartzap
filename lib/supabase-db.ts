@@ -22,6 +22,11 @@ import {
     TemplateProjectItem,
     CreateTemplateProjectDTO,
     CustomFieldDefinition,
+    CampaignFolder,
+    CampaignTag,
+    CreateCampaignFolderDTO,
+    UpdateCampaignFolderDTO,
+    CreateCampaignTagDTO,
 } from '../types'
 import { isSuppressionActive } from '@/lib/phone-suppressions'
 import { canonicalTemplateCategory } from '@/lib/template-category'
@@ -103,16 +108,48 @@ export const campaignDb = {
         offset: number
         search?: string | null
         status?: string | null
+        folderId?: string | null  // null = todas, 'none' = sem pasta, UUID = pasta específica
+        tagIds?: string[] | null  // IDs das tags para filtrar (AND)
     }): Promise<{ data: Campaign[]; total: number }> => {
         const limit = Math.max(1, Math.min(100, Math.floor(params.limit || 20)))
         const offset = Math.max(0, Math.floor(params.offset || 0))
         const search = (params.search || '').trim()
         const status = (params.status || '').trim()
+        const folderId = params.folderId ?? null
+        const tagIds = params.tagIds ?? null
+
+        // Se filtrar por tags, precisamos buscar os campaign_ids que têm TODAS as tags
+        let campaignIdsWithTags: string[] | null = null
+        if (tagIds && tagIds.length > 0) {
+            // Para cada tag, busca os campaign_ids que a possuem
+            const tagResults = await Promise.all(
+                tagIds.map(async (tagId) => {
+                    const { data } = await supabase
+                        .from('campaign_tag_assignments')
+                        .select('campaign_id')
+                        .eq('tag_id', tagId)
+                    return new Set((data || []).map((r: any) => r.campaign_id))
+                })
+            )
+
+            // Interseção: campanhas que têm TODAS as tags selecionadas
+            campaignIdsWithTags = Array.from(
+                tagResults.reduce((acc, set) => {
+                    if (acc === null) return set
+                    return new Set([...acc].filter(id => set.has(id)))
+                }, null as Set<string> | null) || new Set()
+            )
+
+            // Se não houver campanhas com todas as tags, retorna vazio
+            if (campaignIdsWithTags.length === 0) {
+                return { data: [], total: 0 }
+            }
+        }
 
         let query = supabase
             .from('campaigns')
             .select(
-                'id,name,status,template_name,template_variables,total_recipients,sent,delivered,read,skipped,failed,created_at,scheduled_date,started_at,first_dispatch_at,last_sent_at,completed_at',
+                'id,name,status,template_name,template_variables,total_recipients,sent,delivered,read,skipped,failed,created_at,scheduled_date,started_at,first_dispatch_at,last_sent_at,completed_at,folder_id,campaign_folders(id,name,color,created_at,updated_at)',
                 { count: 'exact' }
             )
 
@@ -125,34 +162,92 @@ export const campaignDb = {
             query = query.eq('status', status)
         }
 
+        // Filtro por pasta
+        if (folderId === 'none') {
+            query = query.is('folder_id', null)
+        } else if (folderId) {
+            query = query.eq('folder_id', folderId)
+        }
+
+        // Filtro por tags (campanhas que têm TODAS as tags selecionadas)
+        if (campaignIdsWithTags !== null) {
+            query = query.in('id', campaignIdsWithTags)
+        }
+
         const { data, error, count } = await query
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1)
 
         if (error) throw error
 
+        // Buscar as tags de cada campanha
+        const campaignIds = (data || []).map((r: any) => r.id)
+        let tagsMap = new Map<string, CampaignTag[]>()
+
+        if (campaignIds.length > 0) {
+            const { data: tagAssignments } = await supabase
+                .from('campaign_tag_assignments')
+                .select(`
+                    campaign_id,
+                    campaign_tags (
+                        id,
+                        name,
+                        color,
+                        created_at
+                    )
+                `)
+                .in('campaign_id', campaignIds)
+
+            ;(tagAssignments || []).forEach((row: any) => {
+                const campaignId = row.campaign_id
+                const tag = row.campaign_tags
+                if (tag) {
+                    const existing = tagsMap.get(campaignId) || []
+                    existing.push({
+                        id: tag.id,
+                        name: tag.name,
+                        color: tag.color,
+                        createdAt: tag.created_at,
+                    })
+                    tagsMap.set(campaignId, existing)
+                }
+            })
+        }
+
         return {
-            data: (data || []).map(row => ({
-                id: row.id,
-                name: row.name,
-                status: row.status as CampaignStatus,
-                templateName: row.template_name,
-                templateVariables: row.template_variables as { header: string[], headerMediaId?: string, body: string[], buttons?: Record<string, string> } | undefined,
-                recipients: row.total_recipients,
-                sent: row.sent,
-                delivered: row.delivered,
-                read: row.read,
-                skipped: (row as any).skipped || 0,
-                failed: row.failed,
-                createdAt: row.created_at,
-                scheduledAt: row.scheduled_date,
-                startedAt: row.started_at,
-                firstDispatchAt: (row as any).first_dispatch_at ?? null,
-                lastSentAt: (row as any).last_sent_at ?? null,
-                completedAt: row.completed_at,
-                flowId: (row as any).flow_id ?? null,
-                flowName: (row as any).flow_name ?? null,
-            })),
+            data: (data || []).map(row => {
+                const folderData = (row as any).campaign_folders
+                return {
+                    id: row.id,
+                    name: row.name,
+                    status: row.status as CampaignStatus,
+                    templateName: row.template_name,
+                    templateVariables: row.template_variables as { header: string[], headerMediaId?: string, body: string[], buttons?: Record<string, string> } | undefined,
+                    recipients: row.total_recipients,
+                    sent: row.sent,
+                    delivered: row.delivered,
+                    read: row.read,
+                    skipped: (row as any).skipped || 0,
+                    failed: row.failed,
+                    createdAt: row.created_at,
+                    scheduledAt: row.scheduled_date,
+                    startedAt: row.started_at,
+                    firstDispatchAt: (row as any).first_dispatch_at ?? null,
+                    lastSentAt: (row as any).last_sent_at ?? null,
+                    completedAt: row.completed_at,
+                    flowId: (row as any).flow_id ?? null,
+                    flowName: (row as any).flow_name ?? null,
+                    folderId: (row as any).folder_id ?? null,
+                    folder: folderData ? {
+                        id: folderData.id,
+                        name: folderData.name,
+                        color: folderData.color,
+                        createdAt: folderData.created_at,
+                        updatedAt: folderData.updated_at,
+                    } : null,
+                    tags: tagsMap.get(row.id) || [],
+                }
+            }),
             total: count || 0,
         }
     },
@@ -204,6 +299,7 @@ export const campaignDb = {
         templateVariables?: { header: string[], headerMediaId?: string, body: string[], buttons?: Record<string, string> }
         flowId?: string | null
         flowName?: string | null
+        folderId?: string | null
     }): Promise<Campaign> => {
         const id = generateId()
         const now = new Date().toISOString()
@@ -234,6 +330,7 @@ export const campaignDb = {
                 cancelled_at: null,
                 flow_id: campaign.flowId ?? null,
                 flow_name: campaign.flowName ?? null,
+                folder_id: campaign.folderId ?? null,
             })
             .select()
             .single()
@@ -364,6 +461,7 @@ export const campaignDb = {
         if (updates.templateSpecHash !== undefined) updateData.template_spec_hash = updates.templateSpecHash
         if (updates.templateParameterFormat !== undefined) updateData.template_parameter_format = updates.templateParameterFormat
         if (updates.templateFetchedAt !== undefined) updateData.template_fetched_at = updates.templateFetchedAt
+        if (updates.folderId !== undefined) updateData.folder_id = updates.folderId
 
         updateData.updated_at = new Date().toISOString()
 
@@ -478,29 +576,27 @@ export const contactDb = {
 
         let suppressionMap = new Map<string, { reason: string | null; source: string | null; expiresAt: string | null }>()
         if (status === 'SUPPRESSED') {
+            // Optimized: Filter active suppressions at database level instead of fetching all
             const { data: suppressionRows, error: suppressionError } = await supabase
                 .from('phone_suppressions')
                 .select('phone,is_active,expires_at,reason,source')
+                .eq('is_active', true)
+                .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
 
             if (suppressionError) throw suppressionError
 
-            const suppressedPhones = (suppressionRows || [])
-                .filter((row: any) => {
-                    const active = isSuppressionActive({ is_active: row.is_active, expires_at: row.expires_at })
-                    if (active) {
-                        const phone = String(row.phone || '').trim()
-                        if (phone) {
-                            suppressionMap.set(phone, {
-                                reason: row.reason ?? null,
-                                source: row.source ?? null,
-                                expiresAt: row.expires_at ?? null,
-                            })
-                        }
-                    }
-                    return active
-                })
-                .map((row: any) => String(row.phone || '').trim())
-                .filter(Boolean)
+            const suppressedPhones: string[] = []
+            for (const row of suppressionRows || []) {
+                const phone = String(row.phone || '').trim()
+                if (phone) {
+                    suppressedPhones.push(phone)
+                    suppressionMap.set(phone, {
+                        reason: row.reason ?? null,
+                        source: row.source ?? null,
+                        expiresAt: row.expires_at ?? null,
+                    })
+                }
+            }
 
             if (!suppressedPhones.length) {
                 return { data: [], total: 0 }
@@ -585,14 +681,16 @@ export const contactDb = {
         }
 
         if (status === 'SUPPRESSED') {
+            // Optimized: Filter active suppressions at database level
             const { data: suppressionRows, error: suppressionError } = await supabase
                 .from('phone_suppressions')
-                .select('phone,is_active,expires_at')
+                .select('phone')
+                .eq('is_active', true)
+                .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
 
             if (suppressionError) throw suppressionError
 
             const suppressedPhones = (suppressionRows || [])
-                .filter((row: any) => isSuppressionActive({ is_active: row.is_active, expires_at: row.expires_at }))
                 .map((row: any) => String(row.phone || '').trim())
                 .filter(Boolean)
 
@@ -914,27 +1012,84 @@ export const contactDb = {
         return ids.length
     },
 
-    import: async (contacts: Omit<Contact, 'id' | 'lastActive'>[]): Promise<number> => {
-        if (contacts.length === 0) return 0
+    import: async (contacts: Omit<Contact, 'id' | 'lastActive'>[]): Promise<{ inserted: number; updated: number }> => {
+        if (contacts.length === 0) return { inserted: 0, updated: 0 }
 
         const now = new Date().toISOString()
-        const rows = contacts.map(contact => ({
-            id: generateId(),
-            name: contact.name || '',
-            phone: contact.phone,
-            status: contact.status || ContactStatus.OPT_IN,
-            tags: contact.tags || [],
-            created_at: now,
-        }))
+        const phones = contacts.map(c => c.phone).filter(Boolean)
 
-        // Use upsert to handle duplicates (phone is unique)
-        const { error } = await supabase
+        // Buscar contatos existentes pelos telefones
+        const { data: existingContacts } = await supabase
             .from('contacts')
-            .upsert(rows, { onConflict: 'phone', ignoreDuplicates: true })
+            .select('id, phone, name, email, tags, custom_fields')
+            .in('phone', phones)
 
-        if (error) throw error
+        const existingByPhone = new Map(
+            (existingContacts || []).map(c => [c.phone, c])
+        )
 
-        return rows.length
+        const toInsert: any[] = []
+        const toUpdate: any[] = []
+
+        contacts.forEach(contact => {
+            const existing = existingByPhone.get(contact.phone)
+
+            if (existing) {
+                // Merge: atualiza dados e faz merge das tags
+                const existingTags = Array.isArray(existing.tags) ? existing.tags : []
+                const newTags = Array.isArray(contact.tags) ? contact.tags : []
+                const mergedTags = [...new Set([...existingTags, ...newTags])]
+
+                // Merge custom_fields
+                const existingCustomFields = existing.custom_fields && typeof existing.custom_fields === 'object'
+                    ? existing.custom_fields
+                    : {}
+                const newCustomFields = (contact as any).custom_fields && typeof (contact as any).custom_fields === 'object'
+                    ? (contact as any).custom_fields
+                    : {}
+                const mergedCustomFields = { ...existingCustomFields, ...newCustomFields }
+
+                toUpdate.push({
+                    id: existing.id,
+                    phone: contact.phone,
+                    name: contact.name || existing.name || '',
+                    email: (contact as any).email || existing.email || null,
+                    tags: mergedTags,
+                    custom_fields: mergedCustomFields,
+                    updated_at: now,
+                })
+            } else {
+                // Novo contato
+                toInsert.push({
+                    id: generateId(),
+                    name: contact.name || '',
+                    phone: contact.phone,
+                    email: (contact as any).email || null,
+                    status: contact.status || ContactStatus.OPT_IN,
+                    tags: contact.tags || [],
+                    custom_fields: (contact as any).custom_fields || {},
+                    created_at: now,
+                })
+            }
+        })
+
+        // Inserir novos
+        if (toInsert.length > 0) {
+            const { error: insertError } = await supabase
+                .from('contacts')
+                .insert(toInsert)
+            if (insertError) throw insertError
+        }
+
+        // Atualizar existentes
+        if (toUpdate.length > 0) {
+            const { error: updateError } = await supabase
+                .from('contacts')
+                .upsert(toUpdate, { onConflict: 'id' })
+            if (updateError) throw updateError
+        }
+
+        return { inserted: toInsert.length, updated: toUpdate.length }
     },
 
     getTags: async (): Promise<string[]> => {
@@ -1403,7 +1558,7 @@ export const templateDb = {
                         fetched_at: (r as any).fetched_at ?? null,
                         updated_at: now,
                     })),
-                    { onConflict: 'name' }
+                    { onConflict: 'name,language' }
                 )
             if (error) throw error
             return
@@ -1428,7 +1583,7 @@ export const templateDb = {
                 fetched_at: (template as any).fetchedAt ?? null,
                 created_at: now,
                 updated_at: now,
-            }, { onConflict: 'name' })
+            }, { onConflict: 'name,language' })
 
         if (error) throw error
     },
@@ -1723,3 +1878,289 @@ export const templateProjectDb = {
         if (error) throw error;
     }
 };
+
+// ============================================================================
+// CAMPAIGN FOLDERS
+// ============================================================================
+
+export const campaignFolderDb = {
+    getAll: async (): Promise<CampaignFolder[]> => {
+        const { data, error } = await supabase
+            .from('campaign_folders')
+            .select('*')
+            .order('name', { ascending: true })
+
+        if (error) throw error
+
+        return (data || []).map(row => ({
+            id: row.id,
+            name: row.name,
+            color: row.color,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+        }))
+    },
+
+    getAllWithCounts: async (): Promise<CampaignFolder[]> => {
+        // Get folders
+        const { data: folders, error: foldersError } = await supabase
+            .from('campaign_folders')
+            .select('*')
+            .order('name', { ascending: true })
+
+        if (foldersError) throw foldersError
+
+        // Get campaign counts per folder
+        const { data: campaigns, error: campaignsError } = await supabase
+            .from('campaigns')
+            .select('folder_id')
+
+        if (campaignsError) throw campaignsError
+
+        // Count campaigns per folder
+        const countMap = new Map<string, number>()
+        ;(campaigns || []).forEach((c: any) => {
+            if (c.folder_id) {
+                countMap.set(c.folder_id, (countMap.get(c.folder_id) || 0) + 1)
+            }
+        })
+
+        return (folders || []).map(row => ({
+            id: row.id,
+            name: row.name,
+            color: row.color,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            campaignCount: countMap.get(row.id) || 0,
+        }))
+    },
+
+    getById: async (id: string): Promise<CampaignFolder | undefined> => {
+        const { data, error } = await supabase
+            .from('campaign_folders')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+        if (error || !data) return undefined
+
+        return {
+            id: data.id,
+            name: data.name,
+            color: data.color,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at,
+        }
+    },
+
+    create: async (dto: CreateCampaignFolderDTO): Promise<CampaignFolder> => {
+        const { data, error } = await supabase
+            .from('campaign_folders')
+            .insert({
+                name: dto.name,
+                color: dto.color || '#6B7280',
+            })
+            .select()
+            .single()
+
+        if (error) throw error
+
+        return {
+            id: data.id,
+            name: data.name,
+            color: data.color,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at,
+        }
+    },
+
+    update: async (id: string, dto: UpdateCampaignFolderDTO): Promise<CampaignFolder | undefined> => {
+        const updateData: Record<string, unknown> = {}
+
+        if (dto.name !== undefined) updateData.name = dto.name
+        if (dto.color !== undefined) updateData.color = dto.color
+
+        const { error } = await supabase
+            .from('campaign_folders')
+            .update(updateData)
+            .eq('id', id)
+
+        if (error) throw error
+
+        return campaignFolderDb.getById(id)
+    },
+
+    delete: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('campaign_folders')
+            .delete()
+            .eq('id', id)
+
+        if (error) throw error
+    },
+
+    // Contagem de campanhas sem pasta
+    getUnfiledCount: async (): Promise<number> => {
+        const { count, error } = await supabase
+            .from('campaigns')
+            .select('*', { count: 'exact', head: true })
+            .is('folder_id', null)
+
+        if (error) throw error
+        return count || 0
+    },
+
+    // Total de campanhas
+    getTotalCount: async (): Promise<number> => {
+        const { count, error } = await supabase
+            .from('campaigns')
+            .select('*', { count: 'exact', head: true })
+
+        if (error) throw error
+        return count || 0
+    },
+}
+
+// ============================================================================
+// CAMPAIGN TAGS
+// ============================================================================
+
+export const campaignTagDb = {
+    getAll: async (): Promise<CampaignTag[]> => {
+        const { data, error } = await supabase
+            .from('campaign_tags')
+            .select('*')
+            .order('name', { ascending: true })
+
+        if (error) throw error
+
+        return (data || []).map(row => ({
+            id: row.id,
+            name: row.name,
+            color: row.color,
+            createdAt: row.created_at,
+        }))
+    },
+
+    getById: async (id: string): Promise<CampaignTag | undefined> => {
+        const { data, error } = await supabase
+            .from('campaign_tags')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+        if (error || !data) return undefined
+
+        return {
+            id: data.id,
+            name: data.name,
+            color: data.color,
+            createdAt: data.created_at,
+        }
+    },
+
+    create: async (dto: CreateCampaignTagDTO): Promise<CampaignTag> => {
+        const { data, error } = await supabase
+            .from('campaign_tags')
+            .insert({
+                name: dto.name,
+                color: dto.color || '#6B7280',
+            })
+            .select()
+            .single()
+
+        if (error) throw error
+
+        return {
+            id: data.id,
+            name: data.name,
+            color: data.color,
+            createdAt: data.created_at,
+        }
+    },
+
+    delete: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('campaign_tags')
+            .delete()
+            .eq('id', id)
+
+        if (error) throw error
+    },
+
+    // Obtém as tags de uma campanha
+    getForCampaign: async (campaignId: string): Promise<CampaignTag[]> => {
+        const { data, error } = await supabase
+            .from('campaign_tag_assignments')
+            .select(`
+                tag_id,
+                campaign_tags (
+                    id,
+                    name,
+                    color,
+                    created_at
+                )
+            `)
+            .eq('campaign_id', campaignId)
+
+        if (error) throw error
+
+        return (data || [])
+            .map((row: any) => row.campaign_tags)
+            .filter(Boolean)
+            .map((tag: any) => ({
+                id: tag.id,
+                name: tag.name,
+                color: tag.color,
+                createdAt: tag.created_at,
+            }))
+    },
+
+    // Atribui tags a uma campanha (substitui todas as tags existentes)
+    assignToCampaign: async (campaignId: string, tagIds: string[]): Promise<void> => {
+        // Primeiro, remove todas as tags existentes
+        const { error: deleteError } = await supabase
+            .from('campaign_tag_assignments')
+            .delete()
+            .eq('campaign_id', campaignId)
+
+        if (deleteError) throw deleteError
+
+        // Depois, insere as novas tags
+        if (tagIds.length > 0) {
+            const rows = tagIds.map(tagId => ({
+                campaign_id: campaignId,
+                tag_id: tagId,
+            }))
+
+            const { error: insertError } = await supabase
+                .from('campaign_tag_assignments')
+                .insert(rows)
+
+            if (insertError) throw insertError
+        }
+    },
+
+    // Adiciona uma tag a uma campanha
+    addToCampaign: async (campaignId: string, tagId: string): Promise<void> => {
+        const { error } = await supabase
+            .from('campaign_tag_assignments')
+            .upsert({
+                campaign_id: campaignId,
+                tag_id: tagId,
+            }, { onConflict: 'campaign_id,tag_id' })
+
+        if (error) throw error
+    },
+
+    // Remove uma tag de uma campanha
+    removeFromCampaign: async (campaignId: string, tagId: string): Promise<void> => {
+        const { error } = await supabase
+            .from('campaign_tag_assignments')
+            .delete()
+            .eq('campaign_id', campaignId)
+            .eq('tag_id', tagId)
+
+        if (error) throw error
+    },
+}

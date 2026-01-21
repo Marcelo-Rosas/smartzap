@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -34,6 +34,7 @@ import { HealthStatus } from '@/lib/health-check'
 import { getPageWidthClass, PageLayoutProvider, usePageLayout } from '@/components/providers/PageLayoutProvider'
 import { campaignService, contactService, templateService, settingsService } from '@/services'
 import { dashboardService } from '@/services/dashboardService'
+import { useUnreadCount } from '@/hooks/useUnreadCount'
 
 // Setup step interface
 interface SetupStep {
@@ -71,9 +72,9 @@ const OnboardingOverlay = ({
                 : health?.services.database?.status === 'error'
                     ? 'error'
                     : 'pending',
-            icon: React.createElement(Database, { size: 20, className: 'text-emerald-400' }),
+            icon: React.createElement(Database, { size: 20, className: 'text-emerald-600 dark:text-emerald-400' }),
             actionLabel: 'Abrir Assistente de Configuração',
-            actionUrl: '/setup',
+            actionUrl: '/install/start',
             errorMessage: health?.services.database?.message,
             isRequired: true,
             instructions: [
@@ -92,9 +93,9 @@ const OnboardingOverlay = ({
                 : health?.services.qstash.status === 'error'
                     ? 'error'
                     : 'pending',
-            icon: React.createElement(Zap, { size: 20, className: 'text-purple-400' }),
+            icon: React.createElement(Zap, { size: 20, className: 'text-purple-600 dark:text-purple-400' }),
             actionLabel: 'Configurar no Assistente',
-            actionUrl: '/setup',
+            actionUrl: '/install/start',
             errorMessage: health?.services.qstash.message,
             isRequired: true,
             instructions: [
@@ -112,11 +113,11 @@ const OnboardingOverlay = ({
                 : health?.services.whatsapp.status === 'error'
                     ? 'error'
                     : 'pending',
-            icon: React.createElement(MessageCircle, { size: 20, className: 'text-green-400' }),
+            icon: React.createElement(MessageCircle, { size: 20, className: 'text-green-600 dark:text-green-400' }),
             errorMessage: health?.services.whatsapp.message,
             isRequired: true,
             actionLabel: 'Configurar WhatsApp',
-            actionUrl: '/setup',
+            actionUrl: '/install/start',
             instructions: [
                 'Configure as credenciais do WhatsApp Business.',
                 'Use o assistente para validar o token.',
@@ -139,37 +140,37 @@ const OnboardingOverlay = ({
                     <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-linear-to-br from-primary-500 to-emerald-600 mb-6 shadow-lg shadow-primary-500/20">
                         <Sparkles size={40} className="text-white" />
                     </div>
-                    <h1 className="text-4xl font-bold text-white tracking-tight mb-3">
+                    <h1 className="text-4xl font-bold text-[var(--ds-text-primary)] tracking-tight mb-3">
                         Configuração Necessária
                     </h1>
-                    <p className="text-gray-400 text-lg max-w-md mx-auto mb-6">
+                    <p className="text-[var(--ds-text-secondary)] text-lg max-w-md mx-auto mb-6">
                         Para utilizar o sistema, precisamos configurar os serviços essenciais. Utilize nosso assistente para facilitar o processo.
                     </p>
                     <a
-                        href="/setup"
+                        href="/install/start"
                         className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-primary-500/25"
                     >
                         <Sparkles size={18} />
-                        Iniciar Assistente de Configuração
+                        Iniciar Assistente de Instalação
                     </a>
                 </div>
 
                 {/* Progress Bar */}
                 <div className="mb-8">
                     <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-gray-400">
+                        <span className="text-[var(--ds-text-secondary)]">
                             Progresso: {completedSteps}/{steps.length} configurados
                         </span>
                         <button
                             onClick={onRefresh}
                             disabled={isLoading}
-                            className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors"
+                            className="flex items-center gap-1 text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] transition-colors"
                         >
                             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
                             Verificar novamente
                         </button>
                     </div>
-                    <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-2 bg-[var(--ds-bg-surface)] rounded-full overflow-hidden">
                         <div
                             className="h-full bg-linear-to-r from-primary-500 to-emerald-500 transition-all duration-500"
                             style={{ width: `${progressPercent}%` }}
@@ -179,7 +180,7 @@ const OnboardingOverlay = ({
                     {/* Redeploy warning */}
                     {completedSteps === 0 && (
                         <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                            <p className="text-sm text-amber-300 mb-2">
+                            <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
                                 💡 <strong>Importante:</strong> Após configurar QStash, faça um <strong>redeploy</strong> para ativar as variáveis.
                             </p>
                             <div className="flex gap-2">
@@ -188,7 +189,7 @@ const OnboardingOverlay = ({
                                         href={`${health.vercel.dashboardUrl}/deployments`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-xs px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg transition-colors"
+                                        className="text-xs px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 rounded-lg transition-colors"
                                     >
                                         Abrir Deployments →
                                     </a>
@@ -221,7 +222,7 @@ const OnboardingOverlay = ({
                                             ? 'bg-red-500/5 border-red-500/30'
                                             : isNextStep
                                                 ? 'bg-primary-500/5 border-primary-500/30 ring-2 ring-primary-500/20'
-                                                : 'bg-zinc-900/50 border-white/10 opacity-60'
+                                                : 'bg-[var(--ds-bg-elevated)] border-[var(--ds-border-default)] opacity-60'
                                         }`}
                                 >
                                     {/* Step number badge */}
@@ -231,7 +232,7 @@ const OnboardingOverlay = ({
                                             ? 'bg-red-500 text-white'
                                             : isNextStep
                                                 ? 'bg-primary-500 text-white'
-                                                : 'bg-zinc-700 text-gray-400'
+                                                : 'bg-[var(--ds-bg-surface)] text-[var(--ds-text-secondary)]'
                                         }`}>
                                         {isConfigured ? <CheckCircle2 size={16} /> : index + 1}
                                     </div>
@@ -240,12 +241,12 @@ const OnboardingOverlay = ({
                                         {/* Header */}
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
-                                                <h3 className={`font-semibold ${isConfigured ? 'text-emerald-400' : isError ? 'text-red-400' : 'text-white'
+                                                <h3 className={`font-semibold ${isConfigured ? 'text-emerald-600 dark:text-emerald-400' : isError ? 'text-red-600 dark:text-red-400' : 'text-[var(--ds-text-primary)]'
                                                     }`}>
                                                     {step.title}
                                                 </h3>
                                                 {step.isRequired && !isConfigured && (
-                                                    <span className="px-1.5 py-0.5 bg-white/10 text-gray-400 text-[10px] font-medium rounded">
+                                                    <span className="px-1.5 py-0.5 bg-[var(--ds-bg-hover)] text-[var(--ds-text-secondary)] text-[10px] font-medium rounded">
                                                         OBRIGATÓRIO
                                                     </span>
                                                 )}
@@ -257,7 +258,7 @@ const OnboardingOverlay = ({
                                             )}
                                         </div>
 
-                                        <p className="text-sm text-gray-400">
+                                        <p className="text-sm text-[var(--ds-text-secondary)]">
                                             {step.description}
                                         </p>
 
@@ -269,7 +270,7 @@ const OnboardingOverlay = ({
                                         )}
 
                                         {isConfigured && (
-                                            <div className="flex items-center gap-2 text-sm text-emerald-400 mt-3">
+                                            <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 mt-3">
                                                 <CheckCircle2 size={14} />
                                                 <span>Configurado</span>
                                             </div>
@@ -277,14 +278,14 @@ const OnboardingOverlay = ({
 
                                         {/* Instructions + Action - TOGETHER */}
                                         {isNextStep && step.instructions.length > 0 && (
-                                            <div className="mt-4 bg-zinc-800/50 rounded-xl p-4 border border-white/5">
+                                            <div className="mt-4 bg-[var(--ds-bg-surface)] rounded-xl p-4 border border-[var(--ds-border-subtle)]">
                                                 <ol className="space-y-2 mb-4">
                                                     {step.instructions.map((instruction, i) => (
                                                         <li
                                                             key={i}
-                                                            className="flex items-center gap-3 text-sm text-gray-300"
+                                                            className="flex items-center gap-3 text-sm text-[var(--ds-text-secondary)]"
                                                         >
-                                                            <span className="shrink-0 w-5 h-5 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold">
+                                                            <span className="shrink-0 w-5 h-5 rounded-full bg-primary-500/20 text-primary-600 dark:text-primary-400 flex items-center justify-center text-xs font-bold">
                                                                 {i + 1}
                                                             </span>
                                                             <span>{instruction}</span>
@@ -310,7 +311,7 @@ const OnboardingOverlay = ({
                                                         href={step.helpUrl}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                                                        className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-[var(--ds-text-muted)] hover:text-[var(--ds-text-secondary)] transition-colors"
                                                     >
                                                         <span>Precisa de ajuda? Ver documentação</span>
                                                     </a>
@@ -321,7 +322,7 @@ const OnboardingOverlay = ({
 
                                     {index < steps.length - 1 && (
                                         <div className="absolute -bottom-4 left-7 z-10">
-                                            <div className={`w-0.5 h-8 ${isConfigured ? 'bg-emerald-500/30' : 'bg-zinc-700'}`} />
+                                            <div className={`w-0.5 h-8 ${isConfigured ? 'bg-emerald-500/30' : 'bg-[var(--ds-bg-surface)]'}`} />
                                         </div>
                                     )}
                                 </div>
@@ -336,13 +337,13 @@ const OnboardingOverlay = ({
                         <div className="mt-8 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                             <div className="flex items-start gap-3">
                                 <div className="p-2 bg-amber-500/20 rounded-lg">
-                                    <MessageCircle size={20} className="text-amber-400" />
+                                    <MessageCircle size={20} className="text-amber-600 dark:text-amber-400" />
                                 </div>
                                 <div>
-                                    <h4 className="font-medium text-amber-300 mb-1">
+                                    <h4 className="font-medium text-amber-700 dark:text-amber-300 mb-1">
                                         Infraestrutura pronta!
                                     </h4>
-                                    <p className="text-sm text-amber-200/70">
+                                    <p className="text-sm text-amber-700/70 dark:text-amber-200/70">
                                         QStash está configurado. Agora adicione suas credenciais do WhatsApp
                                         na página de configurações.
                                     </p>
@@ -362,11 +363,11 @@ const OnboardingOverlay = ({
 
                 {
                     !infrastructureReady && (
-                        <div className="mt-8 p-4 bg-zinc-800/50 border border-white/10 rounded-xl text-center">
-                            <p className="text-gray-400 text-sm">
+                        <div className="mt-8 p-4 bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl text-center">
+                            <p className="text-[var(--ds-text-secondary)] text-sm">
                                 Complete os passos acima na ordem para liberar o acesso ao sistema.
                             </p>
-                            <p className="text-gray-500 text-xs mt-2">
+                            <p className="text-[var(--ds-text-muted)] text-xs mt-2">
                                 Após configurar cada serviço no Vercel, clique em "Verificar novamente".
                             </p>
                         </div>
@@ -374,28 +375,28 @@ const OnboardingOverlay = ({
                 }
 
                 {/* Help links */}
-                <div className="mt-8 pt-6 border-t border-white/5">
-                    <h4 className="text-sm font-medium text-gray-400 mb-3">Precisa de ajuda?</h4>
+                <div className="mt-8 pt-6 border-t border-[var(--ds-border-subtle)]">
+                    <h4 className="text-sm font-medium text-[var(--ds-text-secondary)] mb-3">Precisa de ajuda?</h4>
                     <div className="grid grid-cols-2 gap-3">
                         <a
                             href="https://vercel.com/docs/storage/upstash"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-3 bg-zinc-800/50 hover:bg-zinc-800 border border-white/10 rounded-xl text-sm text-gray-300 transition-colors"
+                            className="flex items-center gap-2 p-3 bg-[var(--ds-bg-surface)] hover:bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl text-sm text-[var(--ds-text-secondary)] transition-colors"
                         >
-                            <Database size={16} className="text-red-400" />
+                            <Database size={16} className="text-red-600 dark:text-red-400" />
                             Docs: Upstash no Vercel
-                            <ExternalLink size={12} className="text-gray-500 ml-auto" />
+                            <ExternalLink size={12} className="text-[var(--ds-text-muted)] ml-auto" />
                         </a>
                         <a
                             href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-3 bg-zinc-800/50 hover:bg-zinc-800 border border-white/10 rounded-xl text-sm text-gray-300 transition-colors"
+                            className="flex items-center gap-2 p-3 bg-[var(--ds-bg-surface)] hover:bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl text-sm text-[var(--ds-text-secondary)] transition-colors"
                         >
-                            <MessageCircle size={16} className="text-green-400" />
+                            <MessageCircle size={16} className="text-green-600 dark:text-green-400" />
                             Docs: WhatsApp Cloud API
-                            <ExternalLink size={12} className="text-gray-500 ml-auto" />
+                            <ExternalLink size={12} className="text-[var(--ds-text-muted)] ml-auto" />
                         </a>
                     </div>
                 </div>
@@ -406,6 +407,7 @@ const OnboardingOverlay = ({
 
 import { PrefetchLink } from '@/components/ui/PrefetchLink'
 import { AccountAlertBanner } from '@/components/ui/AccountAlertBanner'
+import { DashboardSidebar, type NavItem } from '@/components/layout/DashboardSidebar'
 
 export function DashboardShell({
     children,
@@ -423,10 +425,11 @@ export function DashboardShell({
     const [isLoggingOut, setIsLoggingOut] = useState(false)
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false)
 
+    // Read sidebar preference from localStorage on mount
     useEffect(() => {
         if (typeof window === 'undefined') return
-        setIsSidebarExpanded(true)
-        window.localStorage.setItem('app-sidebar-collapsed', 'false')
+        const isCollapsed = window.localStorage.getItem('app-sidebar-collapsed') === 'true'
+        setIsSidebarExpanded(!isCollapsed)
     }, [])
 
     const updateSidebarExpanded = useCallback((value: boolean) => {
@@ -439,6 +442,9 @@ export function DashboardShell({
     // This shows toasts when campaigns complete, new contacts are added, etc.
     const { useRealtimeNotifications } = require('@/hooks/useRealtimeNotifications')
     useRealtimeNotifications({ enabled: true })
+
+    // T069: Unread count for inbox badge in sidebar
+    const { count: unreadCount } = useUnreadCount()
 
     const { data: authStatus } = useQuery({
         queryKey: ['authStatus'],
@@ -549,16 +555,19 @@ export function DashboardShell({
         (healthStatus.services.database?.status !== 'ok' ||
             healthStatus.services.qstash.status !== 'ok')
 
-    const navItems = [
+    // Memoize navItems to prevent recreation on every render
+    // T069: Include dynamic unread badge for inbox
+    const navItems = useMemo(() => [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/campaigns', label: 'Campanhas', icon: MessageSquare },
+        { path: '/inbox', label: 'Inbox', icon: MessageCircle, badge: unreadCount > 0 ? String(unreadCount > 99 ? '99+' : unreadCount) : undefined },
         { path: '/workflows', label: 'Workflow', icon: Workflow, badge: 'beta', disabled: true },
         { path: '/conversations', label: 'Conversas', icon: MessageCircle, hidden: true },
         { path: '/templates', label: 'Templates', icon: FileText },
         { path: '/contacts', label: 'Contatos', icon: Users },
         { path: '/settings/ai', label: 'IA', icon: Sparkles },
         { path: '/settings', label: 'Configurações', icon: Settings },
-    ].filter(item => !item.hidden)
+    ].filter(item => !item.hidden), [unreadCount])
 
     const getPageTitle = (path: string) => {
         if (path === '/') return 'Dashboard'
@@ -566,6 +575,8 @@ export function DashboardShell({
         if (path.startsWith('/campaigns/new')) return 'Nova Campanha'
         if (path.startsWith('/campaigns/')) return 'Detalhes da Campanha'
         if (path === '/workflows') return 'Workflows'
+        if (path === '/inbox') return 'Inbox'
+        if (path.startsWith('/inbox/')) return 'Conversa'
         if (path === '/conversations') return 'Conversas'
         if (path.startsWith('/conversations/')) return 'Conversa'
         if (path.startsWith('/builder')) return 'Workflow'
@@ -576,6 +587,7 @@ export function DashboardShell({
         if (path.startsWith('/contacts')) return 'Contatos'
         if (path.startsWith('/submissions')) return 'Submissões'
         if (path === '/settings/ai') return 'Central de IA'
+        if (path === '/settings/ai/agents') return 'Agentes IA'
         if (path.startsWith('/settings')) return 'Configurações'
         return 'App'
     }
@@ -592,231 +604,30 @@ export function DashboardShell({
     }
 
     const isBuilderRoute = pathname?.startsWith('/builder') ?? false
+    const isInboxRoute = pathname?.startsWith('/inbox') ?? false
 
-    const CompactSidebar = (
-        <aside
-            className={`hidden lg:flex fixed lg:static inset-y-0 left-0 z-50 w-14 bg-zinc-950 border-r border-white/5 ${isSidebarExpanded ? 'lg:hidden' : ''}`}
-            aria-label="Menu de navegação compacto"
-        >
-            <div className="flex h-full w-14 flex-col items-center gap-3 py-3">
-                <button
-                    type="button"
-                    className="hidden lg:flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2"
-                    onClick={() => updateSidebarExpanded(true)}
-                    title="Expandir menu"
-                    aria-label="Expandir menu de navegação"
-                >
-                    <ChevronRight size={14} aria-hidden="true" />
-                </button>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-linear-to-br from-primary-600 to-primary-800 shadow-lg shadow-primary-900/20" role="img" aria-label="Logo SmartZap">
-                    <Zap className="text-white" size={18} fill="currentColor" aria-hidden="true" />
-                </div>
-                <nav className="flex flex-1 flex-col items-center gap-1.5 pt-1" aria-label="Menu principal">
-                    {navItems.map((item) => {
-                        const isDisabled = 'disabled' in item && item.disabled
-                        const baseClassName = `group relative flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-gray-400 transition-colors ${
-                            isDisabled
-                                ? 'opacity-50 cursor-not-allowed'
-                                : 'hover:border-white/10 hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950'
-                        } ${pathname === item.path ? 'bg-white/5 text-white' : ''}`
+    // Sidebar props - memoized callbacks
+    const handleCloseMobileMenu = useCallback(() => setIsMobileMenuOpen(false), [])
 
-                        const content = (
-                            <>
-                                <item.icon size={16} aria-hidden="true" />
-                                {item.badge && (
-                                    <span className="absolute -right-1 -top-1 rounded-full bg-emerald-500/90 px-0.5 py-[1px] text-[7px] font-semibold uppercase tracking-wider text-black" aria-label={item.badge}>
-                                        {item.badge}
-                                    </span>
-                                )}
-                            </>
-                        )
-
-                        if (isDisabled) {
-                            return (
-                                <span
-                                    key={item.path}
-                                    className={baseClassName}
-                                    title={`${item.label} (${item.badge})`}
-                                    aria-label={`${item.label} - ${item.badge}`}
-                                    aria-disabled="true"
-                                >
-                                    {content}
-                                </span>
-                            )
-                        }
-
-                        return (
-                            <PrefetchLink
-                                key={item.path}
-                                href={item.path}
-                                onMouseEnter={() => prefetchRoute(item.path)}
-                                aria-current={pathname === item.path ? 'page' : undefined}
-                                className={baseClassName}
-                                title={item.label}
-                                aria-label={item.label}
-                            >
-                                {content}
-                            </PrefetchLink>
-                        )
-                    })}
-                </nav>
-                <button
-                    onClick={handleLogout}
-                    disabled={isLoggingOut}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-gray-400 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Sair"
-                    aria-label="Sair da conta"
-                >
-                    {isLoggingOut ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-500 border-t-white" role="status" aria-label="Saindo..." />
-                    ) : (
-                        <LogOut size={16} aria-hidden="true" />
-                    )}
-                </button>
-                <div className="text-[10px] text-gray-700 font-mono" aria-label={`Versão ${process.env.NEXT_PUBLIC_APP_VERSION}`}>
-                    v{process.env.NEXT_PUBLIC_APP_VERSION}
-                </div>
-            </div>
-        </aside>
-    )
-
-    const ExpandedSidebar = (
-        <aside
-            className={`fixed inset-y-0 left-0 z-50 w-56 bg-zinc-950 border-r border-white/5 transform transition-transform duration-200 ease-in-out ${isSidebarExpanded || isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}
-            aria-label="Menu de navegação expandido"
-        >
-            <div className="flex h-full flex-col p-4">
-                <div className="h-16 flex items-center px-2 mb-6">
-                    <div className="w-10 h-10 bg-linear-to-br from-primary-600 to-primary-800 rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-primary-900/20 border border-white/10" role="img" aria-label="Logo SmartZap">
-                        <Zap className="text-white" size={20} fill="currentColor" aria-hidden="true" />
-                    </div>
-                    <div>
-                        <span className="text-xl font-bold text-white tracking-tight block">SmartZap</span>
-                    </div>
-                    <button
-                        type="button"
-                        className="ml-auto h-7 w-7 items-center justify-center rounded-md border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors hidden lg:flex focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2"
-                        onClick={() => updateSidebarExpanded(false)}
-                        title="Recolher menu"
-                        aria-label="Recolher menu de navegação"
-                    >
-                        <ChevronLeft size={14} aria-hidden="true" />
-                    </button>
-                    <button
-                        className="ml-auto lg:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md p-1"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        aria-label="Fechar menu"
-                    >
-                        <X size={20} className="text-gray-400" aria-hidden="true" />
-                    </button>
-                </div>
-
-                <nav className="flex-1 space-y-6 overflow-y-auto no-scrollbar" aria-label="Menu principal">
-                    <div>
-                        <PrefetchLink
-                            href="/campaigns/new"
-                            className="group relative inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium transition-all shadow-lg shadow-primary-900/20 overflow-hidden focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-                            aria-label="Criar nova campanha"
-                        >
-                            <div className="absolute inset-0 bg-primary-600 group-hover:bg-primary-500 transition-colors"></div>
-                            <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                            <Plus size={16} className="relative z-10 text-white" aria-hidden="true" />
-                            <span className="relative z-10 text-white">Nova Campanha</span>
-                        </PrefetchLink>
-                    </div>
-
-                    <div className="space-y-1 px-2">
-                        <p className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Menu</p>
-                        {navItems.map((item) => {
-                            const isDisabled = 'disabled' in item && item.disabled
-                            const baseClassName = `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${
-                                isDisabled
-                                    ? 'opacity-50 cursor-not-allowed text-gray-500'
-                                    : pathname === item.path
-                                        ? 'bg-primary-500/10 text-primary-400 font-medium border border-primary-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
-                                        : 'text-gray-400 hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500'
-                            }`
-
-                            const content = (
-                                <>
-                                    <item.icon size={20} aria-hidden="true" />
-                                    <span className="flex items-center gap-2">
-                                        {item.label}
-                                        {item.badge && (
-                                            <span className="rounded-full bg-emerald-500/20 px-1.5 py-[1px] text-[8px] font-semibold uppercase tracking-wider text-emerald-200 border border-emerald-500/30" aria-label={item.badge}>
-                                                {item.badge}
-                                            </span>
-                                        )}
-                                    </span>
-                                </>
-                            )
-
-                            if (isDisabled) {
-                                return (
-                                    <span
-                                        key={item.path}
-                                        className={baseClassName}
-                                        aria-disabled="true"
-                                    >
-                                        {content}
-                                    </span>
-                                )
-                            }
-
-                            return (
-                                <PrefetchLink
-                                    key={item.path}
-                                    href={item.path}
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                    onMouseEnter={() => prefetchRoute(item.path)}
-                                    aria-current={pathname === item.path ? 'page' : undefined}
-                                    className={baseClassName}
-                                >
-                                    {content}
-                                </PrefetchLink>
-                            )
-                        })}
-                    </div>
-                </nav>
-
-                <div className="pt-4 mt-4 border-t border-white/5">
-                    <button
-                        onClick={handleLogout}
-                        disabled={isLoggingOut}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer transition-colors border border-transparent hover:border-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Sair da conta"
-                        aria-label="Sair da conta"
-                    >
-                        <div className="w-9 h-9 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center overflow-hidden" aria-hidden="true">
-                            <span className="text-lg font-bold text-primary-400">
-                                {(companyName || 'SmartZap').charAt(0).toUpperCase()}
-                            </span>
-                        </div>
-                        <div className="flex-1 min-w-0 text-left">
-                            <p className="text-sm font-medium text-white truncate">{companyName || 'SmartZap'}</p>
-                            <p className="text-xs text-gray-500 truncate">Administrador</p>
-                        </div>
-                        {isLoggingOut ? (
-                            <div className="w-4 h-4 border-2 border-gray-500 border-t-white rounded-full animate-spin" role="status" aria-label="Saindo..." />
-                        ) : (
-                            <LogOut size={16} className="text-gray-500 hover:text-white transition-colors" aria-hidden="true" />
-                        )}
-                    </button>
-
-                    <div className="mt-2 text-[10px] text-gray-700 text-center font-mono" aria-label={`Versão ${process.env.NEXT_PUBLIC_APP_VERSION}`}>
-                        v{process.env.NEXT_PUBLIC_APP_VERSION}
-                    </div>
-                </div>
-            </div>
-        </aside>
-    )
+    // Sidebar component props
+    const sidebarProps = {
+        pathname,
+        navItems: navItems as NavItem[],
+        isSidebarExpanded,
+        isMobileMenuOpen,
+        isLoggingOut,
+        companyName: companyName || null,
+        onToggleSidebar: updateSidebarExpanded,
+        onCloseMobileMenu: handleCloseMobileMenu,
+        onLogout: handleLogout,
+        onPrefetchRoute: prefetchRoute,
+    }
 
     if (isBuilderRoute) {
         return (
             <PageLayoutProvider>
                 <div
-                    className="min-h-screen bg-zinc-950 text-gray-100 flex font-sans selection:bg-primary-500/30"
+                    className="min-h-screen bg-[var(--ds-bg-base)] text-[var(--ds-text-primary)] flex font-sans selection:bg-primary-500/30"
                     style={{
                         "--builder-sidebar-width": "56px",
                         "--background": "oklch(0 0 0)",
@@ -824,7 +635,7 @@ export function DashboardShell({
                         "--border": "oklch(0.27 0 0)",
                     } as React.CSSProperties}
                 >
-                    {CompactSidebar}
+                    <DashboardSidebar {...sidebarProps} />
                     <div className="flex-1 min-w-0 lg:pl-14">
                         {children}
                     </div>
@@ -833,41 +644,90 @@ export function DashboardShell({
         )
     }
 
+    // Inbox route - full-bleed layout without header for native feel
+    if (isInboxRoute) {
+        return (
+            <PageLayoutProvider>
+                <div className="min-h-screen text-[var(--ds-text-primary)] flex font-sans selection:bg-primary-500/30">
+                    {/* Mobile Overlay */}
+                    {isMobileMenuOpen && (
+                        <div
+                            className="fixed inset-0 bg-[var(--ds-bg-overlay)] backdrop-blur-sm z-40 lg:hidden"
+                            onClick={handleCloseMobileMenu}
+                            role="button"
+                            aria-label="Fechar menu"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape' || e.key === 'Enter') {
+                                    handleCloseMobileMenu()
+                                }
+                            }}
+                        />
+                    )}
+
+                    <DashboardSidebar {...sidebarProps} />
+
+                    {/* Main Content - no header on desktop, compact mobile header */}
+                    {/* CompactSidebar is lg:static (in flow), ExpandedSidebar is fixed (needs padding) */}
+                    <div className={cn(
+                        "flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-[padding] duration-200",
+                        isSidebarExpanded && "lg:pl-56"
+                    )}>
+                        {/* Compact mobile header - only menu button */}
+                        <header className="lg:hidden h-12 flex items-center px-4 border-b border-zinc-800/50 bg-zinc-950 shrink-0">
+                            <button
+                                className="p-2 text-[var(--ds-text-secondary)] -ml-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md"
+                                onClick={() => {
+                                    updateSidebarExpanded(true)
+                                    setIsMobileMenuOpen(true)
+                                }}
+                                aria-label="Abrir menu de navegação"
+                            >
+                                <Menu size={20} aria-hidden="true" />
+                            </button>
+                            <span className="ml-2 text-sm font-medium text-zinc-300">Inbox</span>
+                        </header>
+                        <PageContentShell>
+                            {children}
+                        </PageContentShell>
+                    </div>
+                </div>
+            </PageLayoutProvider>
+        )
+    }
+
     return (
         <PageLayoutProvider>
-            <div className="min-h-screen text-gray-100 flex font-sans selection:bg-primary-500/30">
+            <div className="min-h-screen text-[var(--ds-text-primary)] flex font-sans selection:bg-primary-500/30">
             {/* Mobile Overlay */}
             {isMobileMenuOpen && (
                 <div
-                    className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden"
-                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="fixed inset-0 bg-[var(--ds-bg-overlay)] backdrop-blur-sm z-40 lg:hidden"
+                    onClick={handleCloseMobileMenu}
                     role="button"
                     aria-label="Fechar menu"
                     tabIndex={0}
                     onKeyDown={(e) => {
                         if (e.key === 'Escape' || e.key === 'Enter') {
-                            setIsMobileMenuOpen(false)
+                            handleCloseMobileMenu()
                         }
                     }}
                 />
             )}
 
-            {/* Sidebar */}
-            {CompactSidebar}
-            {ExpandedSidebar}
+            {/* Sidebar - extracted component with memoization */}
+            <DashboardSidebar {...sidebarProps} />
 
-            {/* Main Content */}
-            <div
-                className={cn(
-                    "flex-1 flex flex-col min-w-0 h-screen overflow-hidden",
-                    isSidebarExpanded ? "lg:pl-56" : "lg:pl-14"
-                )}
-            >
+            {/* Main Content - padding only when expanded (ExpandedSidebar is fixed) */}
+            <div className={cn(
+                "flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-[padding] duration-200",
+                isSidebarExpanded && "lg:pl-56"
+            )}>
                 {/* Header */}
                 <header className="h-20 flex items-center justify-between px-6 lg:px-10 shrink-0">
                     <div className="flex items-center">
                         <button
-                            className="lg:hidden p-2 text-gray-400 mr-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md"
+                            className="lg:hidden p-2 text-[var(--ds-text-secondary)] mr-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md"
                             onClick={() => {
                                 updateSidebarExpanded(true)
                                 setIsMobileMenuOpen(true)
@@ -877,17 +737,17 @@ export function DashboardShell({
                             <Menu size={24} aria-hidden="true" />
                         </button>
 
-                        <nav className="hidden md:flex items-center text-sm text-gray-500" aria-label="Breadcrumb">
-                            <span className="hover:text-white cursor-pointer transition-colors">App</span>
-                            <span className="mx-2 text-gray-700" aria-hidden="true">/</span>
-                            <span className="text-gray-300" aria-current="page">{getPageTitle(pathname || '/')}</span>
+                        <nav className="hidden md:flex items-center text-sm text-[var(--ds-text-muted)]" aria-label="Breadcrumb">
+                            <span className="hover:text-[var(--ds-text-primary)] cursor-pointer transition-colors">App</span>
+                            <span className="mx-2 text-[var(--ds-text-muted)]" aria-hidden="true">/</span>
+                            <span className="text-[var(--ds-text-secondary)]" aria-current="page">{getPageTitle(pathname || '/')}</span>
                         </nav>
                     </div>
 
                     <div className="flex items-center gap-6">
                         <button className="relative group focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md p-1" aria-label="Notificações (1 nova)">
-                            <Bell size={20} className="text-gray-500 group-hover:text-white transition-colors cursor-pointer" aria-hidden="true" />
-                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary-500 rounded-full border-2 border-zinc-950" aria-label="1 notificação não lida"></span>
+                            <Bell size={20} className="text-[var(--ds-text-muted)] group-hover:text-[var(--ds-text-primary)] transition-colors cursor-pointer" aria-hidden="true" />
+                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary-500 rounded-full border-2 border-[var(--ds-bg-base)]" aria-label="1 notificação não lida"></span>
                         </button>
                     </div>
                 </header>

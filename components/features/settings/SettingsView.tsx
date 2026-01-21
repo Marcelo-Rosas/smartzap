@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { Bot, ChevronRight } from 'lucide-react';
 import { TestContactPanel } from './TestContactPanel';
 import { AutoSuppressionPanel } from './AutoSuppressionPanel';
 import { WorkflowExecutionPanel } from './WorkflowExecutionPanel';
@@ -10,6 +12,9 @@ import { CalendarBookingPanel } from './CalendarBookingPanel';
 import { FlowEndpointPanel } from './FlowEndpointPanel';
 import { CredentialsForm } from './CredentialsForm';
 import { NgrokDevPanel } from './NgrokDevPanel';
+import { DevModePanel } from './DevModePanel';
+import { InboxRetentionPanel } from './InboxRetentionPanel';
+import { useDevMode } from '@/components/providers/DevModeProvider';
 import type { SettingsViewProps } from './types';
 
 // Re-export types for consumers
@@ -85,6 +90,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   isSavingWorkflowExecution,
 
 }) => {
+  // Dev mode hook
+  const { isDevMode } = useDevMode();
+
   // Always start collapsed
   const [isEditing, setIsEditing] = useState(false);
   const [devPublicBaseUrl, setDevPublicBaseUrl] = useState<string | null>(null);
@@ -135,14 +143,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     ? `${devPublicBaseUrl}${webhookPath || '/api/webhook'}`
     : null;
 
-  if (isLoading) return <div className="text-white">Carregando configurações...</div>;
+  if (isLoading) return <div className="text-[var(--ds-text-primary)]">Carregando configurações...</div>;
 
   return (
     <div>
       {!hideHeader && (
         <>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Configurações</h1>
-          <p className="text-gray-400 mb-10">Gerencie sua conexão com a WhatsApp Business API</p>
+          <h1 className="text-3xl font-bold text-[var(--ds-text-primary)] tracking-tight mb-2">Configurações</h1>
+          <p className="text-[var(--ds-text-secondary)] mb-10">Gerencie sua conexão com a WhatsApp Business API</p>
         </>
       )}
 
@@ -162,7 +170,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         />
 
         {/* Meta App (opcional) — debug_token e diagnóstico avançado */}
-        {settings.isConnected && (
+        {isDevMode && settings.isConnected && (
           <MetaAppPanel
             metaApp={metaApp}
             metaAppLoading={metaAppLoading}
@@ -199,11 +207,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           />
         )}
 
-        {/* Flow Endpoint (MiniApp Dinamico) */}
-        {settings.isConnected && <FlowEndpointPanel devBaseUrl={devPublicBaseUrl} />}
+        {/* Flow Endpoint (MiniApp Dinamico) - Dev only */}
+        {isDevMode && settings.isConnected && <FlowEndpointPanel devBaseUrl={devPublicBaseUrl} />}
 
-        {/* Test Contact Section */}
-        {settings.isConnected && (
+        {/* Test Contact Section - Dev only */}
+        {isDevMode && settings.isConnected && (
           <TestContactPanel
             testContact={testContact}
             saveTestContact={saveTestContact}
@@ -244,8 +252,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         )}
 
         {/* Webhook Local (dev only) */}
-        {process.env.NODE_ENV === 'development' && <NgrokDevPanel />}
+        {isDevMode && <NgrokDevPanel />}
 
+        {/* Developer Mode Toggle - sempre visível */}
+        <DevModePanel />
+
+        {/* T070: AI Agents Section - Link to AI Agents Configuration */}
+        {settings.isConnected && (
+          <div className="rounded-xl border border-[var(--ds-border-subtle)] bg-[var(--ds-bg-elevated)] p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)]">
+                  <Bot className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-[var(--ds-text-primary)]">Agentes de IA</h3>
+                  <p className="text-sm text-[var(--ds-text-secondary)]">
+                    Configure agentes de IA para responder automaticamente às conversas
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/settings/ai/agents"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] text-[var(--ds-text-secondary)] hover:bg-[var(--ds-bg-hover)] hover:text-[var(--ds-text-primary)] transition-colors"
+              >
+                <span className="text-sm font-medium">Configurar</span>
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* T071: Inbox Retention Configuration */}
+        {settings.isConnected && <InboxRetentionPanel />}
 
         {/* Webhook Configuration Section */}
         {settings.isConnected && (webhookUrl || devWebhookUrl) && (

@@ -6,7 +6,7 @@ import { useTemplatesController } from '@/hooks/useTemplates';
 import { useLeadFormsController } from '@/hooks/useLeadForms'
 import { TemplateListView } from '@/components/features/templates/TemplateListView';
 import { useTemplateProjectsQuery, useTemplateProjectMutations } from '@/hooks/useTemplateProjects';
-import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, LayoutGrid, Sparkles, Zap, Workflow, FileText, ClipboardList } from 'lucide-react';
+import { Loader2, Plus, Folder, Search, RefreshCw, CheckCircle, AlertTriangle, Trash2, LayoutGrid, Sparkles, Workflow, FileText, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Page, PageActions, PageDescription, PageHeader, PageTitle } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ const StatusBadge = ({ status, approvedCount, totalCount }: { status: string; ap
     );
   }
   return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border bg-zinc-500/10 text-zinc-400 border-zinc-500/20">
+    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border bg-[var(--ds-bg-surface)] text-[var(--ds-text-secondary)] border-[var(--ds-border-default)]">
       Rascunho
     </span>
   );
@@ -167,28 +167,13 @@ export default function TemplatesPage() {
         <PageActions>
           {activeTab === 'meta' && (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleCreateManualTemplate}
-                className="border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
-              >
+              <Button variant="outline" onClick={handleCreateManualTemplate}>
                 <FileText className="w-4 h-4" />
                 Criar template
               </Button>
 
-              <Button
-                onClick={() => controller.setIsBulkModalOpen(true)}
-                className="bg-emerald-500 text-black hover:bg-emerald-400 transition-colors"
-              >
-                <Zap className="w-4 h-4 text-emerald-900" />
-                Gerar UTILITY em Massa
-              </Button>
-
-              <Button
-                onClick={() => controller.setIsAiModalOpen(true)}
-                className="bg-zinc-950/40 text-gray-200 border border-white/10 hover:bg-white/5 transition-colors"
-              >
-                <Sparkles className="w-4 h-4 text-emerald-300" />
+              <Button variant="outline" onClick={() => controller.setIsAiModalOpen(true)}>
+                <Sparkles className="w-4 h-4" />
                 Criar com IA
               </Button>
 
@@ -196,26 +181,38 @@ export default function TemplatesPage() {
                 variant="outline"
                 onClick={controller.onSync}
                 disabled={controller.isSyncing}
-                className="border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
               >
-                <RefreshCw className={cn('w-4 h-4', controller.isSyncing ? 'animate-spin' : '')} />
+                <RefreshCw className={cn('w-4 h-4', controller.isSyncing && 'animate-spin')} />
                 {controller.isSyncing ? 'Sincronizando...' : 'Sincronizar'}
               </Button>
             </div>
           )}
 
           {activeTab === 'projects' && (
-            <button
-              onClick={() => router.push('/templates/new')}
-              className="bg-white text-black px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-colors hover:bg-gray-200"
-            >
-              <Plus className="w-5 h-5" />
+            <Button variant="brand" onClick={() => router.push('/templates/new')}>
+              <Plus className="w-4 h-4" />
               Novo Projeto
-            </button>
+            </Button>
           )}
 
           {activeTab === 'flows' && (
-            <div className="flex items-center gap-2" />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push('/submissions')}>
+                <ClipboardList className="w-4 h-4" />
+                Ver Submissões
+              </Button>
+              <Button variant="brand" onClick={handleQuickCreateFlow} disabled={isCreatingFlow}>
+                <Plus className="w-4 h-4" />
+                {isCreatingFlow ? 'Criando...' : 'Criar MiniApp'}
+              </Button>
+            </div>
+          )}
+
+          {activeTab === 'forms' && (
+            <Button variant="brand" onClick={() => leadFormsController.setIsCreateOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Criar formulário
+            </Button>
           )}
         </PageActions>
       </PageHeader>
@@ -225,8 +222,8 @@ export default function TemplatesPage() {
         <button
           onClick={() => setTab('meta')}
           className={`rounded-full border px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'meta'
-            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-            : 'border-white/10 bg-zinc-950/40 text-gray-400 hover:text-white'
+            ? 'border-emerald-400/40 bg-emerald-500/10 text-[var(--ds-status-success-text)]'
+            : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)]'
             }`}
         >
           <CheckCircle className="w-4 h-4" />
@@ -236,13 +233,13 @@ export default function TemplatesPage() {
         <button
           onClick={() => setTab('flows')}
           className={`rounded-full border px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'flows'
-            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-            : 'border-white/10 bg-zinc-950/40 text-gray-400 hover:text-white'
+            ? 'border-emerald-400/40 bg-emerald-500/10 text-[var(--ds-status-success-text)]'
+            : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)]'
             }`}
         >
           <Workflow className="w-4 h-4" />
           MiniApps
-          <span className="rounded-full bg-emerald-500/20 px-1 py-px text-[8px] font-semibold uppercase tracking-wider text-emerald-200 border border-emerald-500/30">
+          <span className="rounded-full bg-emerald-500/20 px-1 py-px text-[8px] font-semibold uppercase tracking-wider text-[var(--ds-status-success-text)] border border-emerald-500/30">
             beta
           </span>
         </button>
@@ -250,13 +247,13 @@ export default function TemplatesPage() {
         <button
           onClick={() => setTab('forms')}
           className={`rounded-full border px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'forms'
-            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-            : 'border-white/10 bg-zinc-950/40 text-gray-400 hover:text-white'
+            ? 'border-emerald-400/40 bg-emerald-500/10 text-[var(--ds-status-success-text)]'
+            : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)]'
             }`}
         >
           <FileText className="w-4 h-4" />
           Forms
-          <span className="rounded-full bg-emerald-500/20 px-1 py-px text-[8px] font-semibold uppercase tracking-wider text-emerald-200 border border-emerald-500/30">
+          <span className="rounded-full bg-emerald-500/20 px-1 py-px text-[8px] font-semibold uppercase tracking-wider text-[var(--ds-status-success-text)] border border-emerald-500/30">
             beta
           </span>
         </button>
@@ -264,19 +261,20 @@ export default function TemplatesPage() {
         <button
           onClick={() => setTab('projects')}
           className={`rounded-full border px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'projects'
-            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-            : 'border-white/10 bg-zinc-950/40 text-gray-400 hover:text-white'
+            ? 'border-emerald-400/40 bg-emerald-500/10 text-[var(--ds-status-success-text)]'
+            : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)]'
             }`}
         >
           <LayoutGrid className="w-4 h-4" />
           Projetos (Fábrica)
-          <span className="rounded-full bg-emerald-500/20 px-1 py-px text-[8px] font-semibold uppercase tracking-wider text-emerald-200 border border-emerald-500/30">
+          <span className="rounded-full bg-emerald-500/20 px-1 py-px text-[8px] font-semibold uppercase tracking-wider text-[var(--ds-status-success-text)] border border-emerald-500/30">
             beta
           </span>
         </button>
       </div>
 
-      {activeTab === 'meta' && (
+      {/* Mantém componentes montados para evitar flicker no switch de abas */}
+      <div className={activeTab === 'meta' ? '' : 'hidden'}>
         <TemplateListView
           {...controller}
           hideHeader
@@ -284,51 +282,18 @@ export default function TemplatesPage() {
             router.push(`/campaigns/new?templateName=${encodeURIComponent(template.name)}`)
           }}
         />
-      )}
+      </div>
 
-      {activeTab === 'flows' && (
-        <div className="space-y-6">
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-sm font-semibold text-white">Criar MiniApp</div>
-                <div className="text-xs text-gray-400">
-                  Crie um MiniApp e abra direto o builder para editar.
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={handleQuickCreateFlow}
-                  disabled={isCreatingFlow}
-                  className="bg-white text-black hover:bg-gray-200"
-                >
-                  {isCreatingFlow ? 'Criando…' : 'Criar MiniApp'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/submissions')}
-                  className="border-white/10 bg-zinc-950/40 hover:bg-white/5 text-gray-200"
-                >
-                  <ClipboardList className="w-4 h-4" />
-                  Ver Submissões
-                </Button>
-              </div>
-            </div>
+      <div className={activeTab === 'flows' ? '' : 'hidden'}>
+        <FlowPublishPanel
+          flows={builderFlows}
+          isLoading={flowsQuery.isLoading}
+          isFetching={flowsQuery.isFetching}
+          onRefresh={() => flowsQuery.refetch()}
+        />
+      </div>
 
-            <div id="flow-publish-panel">
-              <FlowPublishPanel
-                flows={builderFlows}
-                isLoading={flowsQuery.isLoading}
-                isFetching={flowsQuery.isFetching}
-                onRefresh={() => flowsQuery.refetch()}
-              />
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'forms' && (
+      <div className={activeTab === 'forms' ? '' : 'hidden'}>
         <LeadFormsView
           forms={leadFormsController.forms}
           tags={leadFormsController.tags}
@@ -353,19 +318,20 @@ export default function TemplatesPage() {
           onDelete={leadFormsController.remove}
           isDeleting={leadFormsController.isDeleting}
           deleteError={leadFormsController.deleteError}
+          hideHeader
         />
-      )}
+      </div>
 
       {activeTab === 'projects' && (
         <>
           {/* Filters Bar */}
-          <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 w-full sm:w-96 bg-zinc-950/40 border border-white/10 rounded-xl px-4 py-3 transition-all">
-              <Search size={18} className="text-gray-500" />
+          <div className="rounded-2xl border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] p-6 shadow-[0_12px_30px_rgba(0,0,0,0.35)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-96 bg-[var(--ds-bg-elevated)] border border-[var(--ds-border-default)] rounded-xl px-4 py-3 transition-all">
+              <Search size={18} className="text-[var(--ds-text-muted)]" />
               <input
                 type="text"
                 placeholder="Buscar projetos..."
-                className="bg-transparent border-none outline-none text-sm w-full text-white placeholder:text-gray-600"
+                className="bg-transparent border-none outline-none text-sm w-full text-[var(--ds-text-primary)] placeholder:text-[var(--ds-text-muted)]"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -373,7 +339,7 @@ export default function TemplatesPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => refetch()}
-                className="p-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg border border-white/10 transition-colors"
+                className="p-2.5 text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)] rounded-lg border border-[var(--ds-border-default)] transition-colors"
                 title="Atualizar"
               >
                 <RefreshCw size={18} />
@@ -382,10 +348,10 @@ export default function TemplatesPage() {
           </div>
 
           {/* Table */}
-          <div className="rounded-2xl border border-white/10 bg-zinc-900/60 shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden">
+          <div className="rounded-2xl border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-zinc-950/40 border-b border-white/10 text-gray-500 uppercase tracking-widest text-xs">
+                <thead className="bg-[var(--ds-bg-elevated)] border-b border-[var(--ds-border-default)] text-[var(--ds-text-muted)] uppercase tracking-widest text-xs">
                   <tr>
                     <th className="px-6 py-4 font-medium">Nome</th>
                     <th className="px-6 py-4 font-medium">Status</th>
@@ -395,7 +361,7 @@ export default function TemplatesPage() {
                     <th className="px-6 py-4 font-medium text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-[var(--ds-border-subtle)]">
                   {isLoadingProjects ? (
                     <tr>
                       <td colSpan={6} className="px-6 py-12 text-center">
@@ -404,7 +370,7 @@ export default function TemplatesPage() {
                     </tr>
                   ) : filteredProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={6} className="px-6 py-12 text-center text-[var(--ds-text-muted)]">
                         Nenhum projeto encontrado.
                       </td>
                     </tr>
@@ -418,7 +384,7 @@ export default function TemplatesPage() {
                         <tr
                           key={project.id}
                           onClick={() => router.push(`/templates/${project.id}`)}
-                          className="hover:bg-white/5 transition-colors group cursor-pointer"
+                          className="hover:bg-[var(--ds-bg-hover)] transition-colors group cursor-pointer"
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -426,7 +392,7 @@ export default function TemplatesPage() {
                                 <Folder size={16} />
                               </div>
                               <div>
-                                <p className="font-medium text-white group-hover:text-emerald-200 transition-colors">
+                                <p className="font-medium text-[var(--ds-text-primary)] group-hover:text-[var(--ds-status-success-text)] transition-colors">
                                   {project.title}
                                 </p>
                               </div>
@@ -439,23 +405,23 @@ export default function TemplatesPage() {
                               totalCount={project.template_count}
                             />
                           </td>
-                          <td className="px-6 py-4 text-center text-gray-400 font-mono">
+                          <td className="px-6 py-4 text-center text-[var(--ds-text-secondary)] font-mono">
                             {project.template_count}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="flex-1 w-24 bg-zinc-800 rounded-full h-1">
+                              <div className="flex-1 w-24 bg-[var(--ds-bg-surface)] rounded-full h-1">
                                 <div
                                   className="bg-emerald-500 h-1 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"
                                   style={{ width: `${approvedPercent}%` }}
                                 />
                               </div>
-                              <span className="text-xs text-gray-400 font-mono w-10">
+                              <span className="text-xs text-[var(--ds-text-secondary)] font-mono w-10">
                                 {approvedPercent}%
                               </span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                          <td className="px-6 py-4 text-[var(--ds-text-muted)] font-mono text-xs">
                             {new Date(project.created_at).toLocaleDateString('pt-BR')}
                           </td>
                           <td className="px-6 py-4 text-right">
@@ -463,7 +429,7 @@ export default function TemplatesPage() {
                               <button
                                 onClick={(e) => handleDeleteProject(e, project.id)}
                                 title="Excluir"
-                                className="p-2 rounded-lg text-gray-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                className="p-2 rounded-lg text-[var(--ds-text-secondary)] hover:text-amber-300 hover:bg-amber-500/10"
                               >
                                 <Trash2 size={16} />
                               </button>

@@ -3,8 +3,12 @@
 import React from 'react';
 import { Edit2, Trash2, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { Button } from '@/components/ui/button';
 import { Contact, ContactStatus } from './types';
 import { calculateRelativeTime, getContactInitials } from './utils';
+import { ContactCardList } from './ContactCard';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 export interface ContactTableProps {
   contacts: Contact[];
@@ -29,19 +33,36 @@ export const ContactTable: React.FC<ContactTableProps> = ({
   onEditContact,
   onDeleteClick
 }) => {
+  const isMobile = useIsMobile();
   const tableColSpan = showSuppressionDetails ? 8 : 7;
 
+  // Mobile: render cards instead of table
+  if (isMobile) {
+    return (
+      <ContactCardList
+        contacts={contacts}
+        isLoading={isLoading}
+        showSuppressionDetails={showSuppressionDetails}
+        selectedIds={selectedIds}
+        onToggleSelect={onToggleSelect}
+        onEditContact={onEditContact}
+        onDeleteClick={onDeleteClick}
+      />
+    );
+  }
+
+  // Desktop: render table
   return (
     <div className="flex-1 min-h-0 overflow-auto">
       <table className="w-full text-left text-sm" aria-label="Lista de contatos">
-        <thead className="bg-white/5 text-gray-400 uppercase text-xs tracking-wider">
+        <thead className="bg-[var(--ds-bg-hover)] text-[var(--ds-text-secondary)] uppercase text-xs tracking-wider">
           <tr>
             <th scope="col" className="w-8 px-6 py-4">
               <label className="sr-only" htmlFor="select-all">Selecionar todos os contatos</label>
               <input
                 id="select-all"
                 type="checkbox"
-                className="rounded border-white/10 bg-zinc-800 checked:bg-primary-500"
+                className="rounded border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] checked:bg-primary-500"
                 checked={isAllSelected}
                 onChange={onToggleSelectAll}
                 aria-label="Selecionar todos os contatos"
@@ -58,16 +79,16 @@ export const ContactTable: React.FC<ContactTableProps> = ({
             <th scope="col" className="px-6 py-4 font-medium text-right">Ações</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/5">
+        <tbody className="divide-y divide-[var(--ds-border-subtle)]">
           {isLoading ? (
             <tr>
-              <td colSpan={tableColSpan} className="px-6 py-8 text-center text-gray-500">
+              <td colSpan={tableColSpan} className="px-6 py-8 text-center text-[var(--ds-text-muted)]">
                 Carregando contatos...
               </td>
             </tr>
           ) : contacts.length === 0 ? (
             <tr>
-              <td colSpan={tableColSpan} className="px-6 py-8 text-center text-gray-500">
+              <td colSpan={tableColSpan} className="px-6 py-8 text-center text-[var(--ds-text-muted)]">
                 Nenhum contato encontrado.
               </td>
             </tr>
@@ -99,136 +120,127 @@ interface ContactTableRowProps {
   onDelete: (id: string) => void;
 }
 
-const ContactTableRow: React.FC<ContactTableRowProps> = ({
-  contact,
-  isSelected,
-  showSuppressionDetails,
-  onToggleSelect,
-  onEdit,
-  onDelete
-}) => {
-  const displayName = contact.name || contact.phone;
+// Memoized row component - prevents re-render when other rows change
+const ContactTableRow = React.memo(
+  function ContactTableRow({
+    contact,
+    isSelected,
+    showSuppressionDetails,
+    onToggleSelect,
+    onEdit,
+    onDelete
+  }: ContactTableRowProps) {
+    const displayName = contact.name || contact.phone;
 
-  return (
-    <tr className="hover:bg-white/5 transition-all duration-200 group hover:shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]">
-      <td className="px-6 py-5">
-        <input
-          type="checkbox"
-          className="rounded border-white/10 bg-zinc-800 checked:bg-primary-500"
-          checked={isSelected}
-          onChange={() => onToggleSelect(contact.id)}
-          aria-label={`Selecionar ${displayName}`}
-        />
-      </td>
-      <td className="px-6 py-5">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full bg-linear-to-br from-zinc-700 to-zinc-900 border border-white/10 text-white flex items-center justify-center font-bold text-xs shadow-inner"
-            aria-hidden="true"
-          >
-            {getContactInitials(displayName)}
-          </div>
-          <div>
-            <p className="font-medium text-white group-hover:text-primary-400 transition-colors">
-              {displayName}
-            </p>
-            <p className="text-xs text-gray-500 font-mono">{contact.phone}</p>
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-5">
-        <div className="flex gap-1.5 flex-wrap">
-          {contact.tags.map((tag, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium bg-zinc-800 text-gray-300 border border-white/5"
+    return (
+      <tr className="hover:bg-[var(--ds-bg-hover)] transition-all duration-200 group hover:shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]">
+        <td className="px-6 py-5">
+          <input
+            type="checkbox"
+            className="rounded border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] checked:bg-primary-500"
+            checked={isSelected}
+            onChange={() => onToggleSelect(contact.id)}
+            aria-label={`Selecionar ${displayName}`}
+          />
+        </td>
+        <td className="px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-full bg-linear-to-br from-[var(--ds-bg-surface)] to-[var(--ds-bg-elevated)] border border-[var(--ds-border-default)] text-[var(--ds-text-primary)] flex items-center justify-center font-bold text-xs shadow-inner"
+              aria-hidden="true"
             >
-              <Tag size={10} className="mr-1.5 opacity-50" aria-hidden="true" /> {tag}
-            </span>
-          ))}
-        </div>
-      </td>
-      <td className="px-6 py-5">
-        <ContactStatusBadge status={contact.status} />
-      </td>
-      {showSuppressionDetails && (
-        <td className="px-6 py-5 text-xs text-gray-400">
-          <div className="text-sm text-white">{contact.suppressionReason || '—'}</div>
-          <div className="text-[10px] text-gray-500">
-            {contact.suppressionSource ? `Fonte: ${contact.suppressionSource}` : 'Fonte: —'}
+              {getContactInitials(displayName)}
+            </div>
+            <div>
+              <p className="font-medium text-[var(--ds-text-primary)] group-hover:text-primary-400 transition-colors">
+                {displayName}
+              </p>
+              <p className="text-xs text-[var(--ds-text-muted)] font-mono">{contact.phone}</p>
+            </div>
           </div>
         </td>
-      )}
-      <td className="px-6 py-5 text-gray-500 text-xs">
-        {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString('pt-BR') : '-'}
-      </td>
-      <td className="px-6 py-5 text-gray-500 text-xs">
-        {contact.updatedAt
-          ? calculateRelativeTime(contact.updatedAt)
-          : (contact.createdAt ? calculateRelativeTime(contact.createdAt) : '-')}
-      </td>
-      <td className="px-6 py-5 text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => onEdit(contact)}
-                className="text-gray-500 hover:text-primary-400 p-1.5 rounded-lg hover:bg-primary-500/10 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2"
-                aria-label={`Editar contato ${displayName}`}
+        <td className="px-6 py-5">
+          <div className="flex gap-1.5 flex-wrap">
+            {contact.tags.map((tag, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium bg-[var(--ds-bg-surface)] text-[var(--ds-text-primary)] border border-[var(--ds-border-subtle)]"
               >
-                <Edit2 size={16} aria-hidden="true" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Editar contato</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => onDelete(contact.id)}
-                className="text-gray-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 focus-visible:outline-offset-2"
-                aria-label={`Excluir contato ${displayName}`}
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Excluir contato</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </td>
-    </tr>
-  );
-};
-
-interface ContactStatusBadgeProps {
-  status: ContactStatus;
-}
-
-const ContactStatusBadge: React.FC<ContactStatusBadgeProps> = ({ status }) => {
-  const getStatusStyles = () => {
-    switch (status) {
-      case ContactStatus.OPT_IN:
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case ContactStatus.OPT_OUT:
-        return 'bg-red-500/10 text-red-400 border-red-500/20';
-      default:
-        return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
-    }
-  };
-
-  const getStatusLabel = () => {
-    return status === ContactStatus.UNKNOWN ? 'DESCONHECIDO' : status;
-  };
-
-  return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${getStatusStyles()}`}>
-      {getStatusLabel()}
-    </span>
-  );
-};
+                <Tag size={10} className="mr-1.5 opacity-50" aria-hidden="true" /> {tag}
+              </span>
+            ))}
+          </div>
+        </td>
+        <td className="px-6 py-5">
+          <StatusBadge
+            status={contact.status === ContactStatus.OPT_IN ? 'success' : contact.status === ContactStatus.OPT_OUT ? 'error' : 'default'}
+            size="sm"
+          >
+            {contact.status === ContactStatus.OPT_IN ? 'OPT_IN' : contact.status === ContactStatus.OPT_OUT ? 'OPT_OUT' : 'DESCONHECIDO'}
+          </StatusBadge>
+        </td>
+        {showSuppressionDetails && (
+          <td className="px-6 py-5 text-xs text-[var(--ds-text-secondary)]">
+            <div className="text-sm text-[var(--ds-text-primary)]">{contact.suppressionReason || '—'}</div>
+            <div className="text-[10px] text-[var(--ds-text-muted)]">
+              {contact.suppressionSource ? `Fonte: ${contact.suppressionSource}` : 'Fonte: —'}
+            </div>
+          </td>
+        )}
+        <td className="px-6 py-5 text-[var(--ds-text-muted)] text-xs">
+          {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString('pt-BR') : '-'}
+        </td>
+        <td className="px-6 py-5 text-[var(--ds-text-muted)] text-xs">
+          {contact.updatedAt
+            ? calculateRelativeTime(contact.updatedAt)
+            : (contact.createdAt ? calculateRelativeTime(contact.createdAt) : '-')}
+        </td>
+        <td className="px-6 py-5 text-right">
+          <div className="flex items-center justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(contact)}
+                  aria-label={`Editar contato ${displayName}`}
+                >
+                  <Edit2 size={16} aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Editar contato</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost-destructive"
+                  size="icon"
+                  onClick={() => onDelete(contact.id)}
+                  aria-label={`Excluir contato ${displayName}`}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Excluir contato</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </td>
+      </tr>
+    );
+  },
+  // Custom comparison: re-render only when relevant props change
+  (prev, next) => (
+    prev.contact.id === next.contact.id &&
+    prev.contact.updatedAt === next.contact.updatedAt &&
+    prev.contact.status === next.contact.status &&
+    prev.isSelected === next.isSelected &&
+    prev.showSuppressionDetails === next.showSuppressionDetails
+  )
+);
 
 export interface ContactPaginationProps {
   currentPage: number;
@@ -258,21 +270,22 @@ export const ContactPagination: React.FC<ContactPaginationProps> = ({
   };
 
   return (
-    <div className="px-6 py-4 border-t border-white/5 flex items-center justify-between">
-      <span className="text-sm text-gray-500">
+    <div className="px-6 py-4 border-t border-[var(--ds-border-subtle)] flex items-center justify-between">
+      <span className="text-sm text-[var(--ds-text-muted)]">
         Página {currentPage} de {totalPages}
       </span>
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="p-2 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2"
               aria-label="Página anterior"
             >
               <ChevronLeft size={18} aria-hidden="true" />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p>Página anterior</p>
@@ -282,29 +295,28 @@ export const ContactPagination: React.FC<ContactPaginationProps> = ({
         {/* Page Numbers */}
         <div className="flex items-center gap-1">
           {getPageNumbers().map((pageNum) => (
-            <button
+            <Button
               key={pageNum}
+              variant={currentPage === pageNum ? 'default' : 'ghost'}
+              size="icon-sm"
               onClick={() => onPageChange(pageNum)}
-              className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
-                ? 'bg-primary-500 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
             >
               {pageNum}
-            </button>
+            </Button>
           ))}
         </div>
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="p-2 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2"
               aria-label="Próxima página"
             >
               <ChevronRight size={18} aria-hidden="true" />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p>Próxima página</p>

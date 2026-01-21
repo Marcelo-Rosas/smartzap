@@ -1,7 +1,10 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ThemeProvider } from 'next-themes'
 import { RealtimeProvider } from '@/components/providers/RealtimeProvider'
+import { CentralizedRealtimeProvider } from '@/components/providers/CentralizedRealtimeProvider'
+import { DevModeProvider } from '@/components/providers/DevModeProvider'
 import { useState } from 'react'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -23,11 +26,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <RealtimeProvider>
-        {children}
-      </RealtimeProvider>
-    </QueryClientProvider>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="dark"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <QueryClientProvider client={queryClient}>
+        <DevModeProvider>
+          <RealtimeProvider>
+            <CentralizedRealtimeProvider>
+              {children}
+            </CentralizedRealtimeProvider>
+          </RealtimeProvider>
+        </DevModeProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
 

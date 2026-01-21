@@ -1,13 +1,17 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCampaignsController } from '@/hooks/useCampaigns'
 import { CampaignListView } from '@/components/features/campaigns/CampaignListView'
+import { OrganizationModals } from '@/components/features/campaigns/OrganizationModals'
 import type { CampaignListResult } from '@/services/campaignService'
 
 export function CampaignsClientWrapper({ initialData }: { initialData?: CampaignListResult }) {
     const router = useRouter()
+    const [organizationModalOpen, setOrganizationModalOpen] = useState(false)
+    const [organizationModalTab, setOrganizationModalTab] = useState<'folders' | 'tags'>('folders')
+
     const {
         campaigns,
         isLoading,
@@ -22,15 +26,22 @@ export function CampaignsClientWrapper({ initialData }: { initialData?: Campaign
         onDelete,
         onDuplicate,
         onRefresh,
+        onMoveToFolder,
         deletingId,
         duplicatingId,
+        movingToFolderId,
         lastDuplicatedCampaignId,
         clearLastDuplicatedCampaignId,
+        folderFilter,
+        tagFilter,
+        setFolderFilter,
+        setTagFilter,
     } = useCampaignsController(initialData)
 
-    const handleRowClick = (id: string) => {
+    // Memoiza handler para evitar re-renders desnecessários no CampaignTableRow
+    const handleRowClick = useCallback((id: string) => {
         router.push(`/campaigns/${id}`)
-    }
+    }, [router])
 
     // Após clonar, navegar automaticamente para a campanha recém-criada.
     useEffect(() => {
@@ -39,24 +50,45 @@ export function CampaignsClientWrapper({ initialData }: { initialData?: Campaign
         clearLastDuplicatedCampaignId?.()
     }, [lastDuplicatedCampaignId, router, clearLastDuplicatedCampaignId])
 
+    // Handler para abrir modal de organização (pastas/tags)
+    const handleManageFolders = useCallback(() => {
+        setOrganizationModalTab('folders')
+        setOrganizationModalOpen(true)
+    }, [])
+
     return (
-        <CampaignListView
-            campaigns={campaigns}
-            isLoading={isLoading}
-            filter={filter}
-            searchTerm={searchTerm}
-            onFilterChange={setFilter}
-            onSearchChange={setSearchTerm}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalFiltered={totalFiltered}
-            onPageChange={setCurrentPage}
-            onRefresh={onRefresh}
-            onDelete={onDelete}
-            onDuplicate={onDuplicate}
-            onRowClick={handleRowClick}
-            deletingId={deletingId}
-            duplicatingId={duplicatingId}
-        />
+        <>
+            <CampaignListView
+                campaigns={campaigns}
+                isLoading={isLoading}
+                filter={filter}
+                searchTerm={searchTerm}
+                onFilterChange={setFilter}
+                onSearchChange={setSearchTerm}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalFiltered={totalFiltered}
+                onPageChange={setCurrentPage}
+                onRefresh={onRefresh}
+                onDelete={onDelete}
+                onDuplicate={onDuplicate}
+                onRowClick={handleRowClick}
+                onMoveToFolder={onMoveToFolder}
+                deletingId={deletingId}
+                duplicatingId={duplicatingId}
+                movingToFolderId={movingToFolderId}
+                folderFilter={folderFilter}
+                tagFilter={tagFilter}
+                onFolderFilterChange={setFolderFilter}
+                onTagFilterChange={setTagFilter}
+                onManageFolders={handleManageFolders}
+            />
+
+            <OrganizationModals
+                isOpen={organizationModalOpen}
+                onClose={() => setOrganizationModalOpen(false)}
+                defaultTab={organizationModalTab}
+            />
+        </>
     )
 }

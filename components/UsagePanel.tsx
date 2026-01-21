@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Send
 } from 'lucide-react'
+import { Container } from '@/components/ui/container'
 
 interface UsageData {
   vercel: {
@@ -73,6 +74,13 @@ const StatusIcon = ({ status }: { status: 'ok' | 'warning' | 'critical' }) => {
   return <AlertTriangle size={14} className="text-red-400" />
 }
 
+// Constantes de cores hoistadas para evitar re-criação em cada render
+const PROGRESS_BAR_COLORS = {
+  ok: 'bg-emerald-500',
+  warning: 'bg-amber-500',
+  critical: 'bg-red-500',
+} as const
+
 const ProgressBar = ({
   percentage,
   status
@@ -80,16 +88,10 @@ const ProgressBar = ({
   percentage: number
   status: 'ok' | 'warning' | 'critical'
 }) => {
-  const colors = {
-    ok: 'bg-emerald-500',
-    warning: 'bg-amber-500',
-    critical: 'bg-red-500',
-  }
-
   return (
-    <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+    <div className="w-full h-2 bg-[var(--ds-bg-surface)] rounded-full overflow-hidden">
       <div
-        className={`h-full ${colors[status]} transition-all duration-500`}
+        className={`h-full ${PROGRESS_BAR_COLORS[status]} transition-all duration-500`}
         style={{ width: `${Math.min(percentage, 100)}%` }}
       />
     </div>
@@ -124,16 +126,16 @@ const UsageItem = ({
       ? 'bg-red-500/5 border-red-500/20'
       : status === 'warning'
         ? 'bg-amber-500/5 border-amber-500/20'
-        : 'bg-zinc-900/50 border-white/10'
+        : 'bg-[var(--ds-bg-elevated)] border-[var(--ds-border-default)]'
       }`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg bg-zinc-800 ${iconColor}`}>
+          <div className={`p-2 rounded-lg bg-[var(--ds-bg-surface)] ${iconColor}`}>
             <Icon size={18} />
           </div>
           <div>
-            <h4 className="font-medium text-white text-sm">{title}</h4>
-            <p className="text-xs text-gray-500">{subtitle}</p>
+            <h4 className="font-medium text-[var(--ds-text-primary)] text-sm">{title}</h4>
+            <p className="text-xs text-[var(--ds-text-muted)]">{subtitle}</p>
           </div>
         </div>
         <StatusIcon status={status} />
@@ -143,9 +145,9 @@ const UsageItem = ({
         <ProgressBar percentage={percentage} status={status} />
 
         <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-400">
-            <span className="font-mono text-white">{value}</span>
-            <span className="text-gray-600"> / {limit}</span>
+          <span className="text-[var(--ds-text-secondary)]">
+            <span className="font-mono text-[var(--ds-text-primary)]">{value}</span>
+            <span className="text-[var(--ds-text-muted)]"> / {limit}</span>
           </span>
           <span className={`font-medium ${status === 'critical'
             ? 'text-red-400'
@@ -162,7 +164,7 @@ const UsageItem = ({
             ? 'text-red-400'
             : status === 'warning'
               ? 'text-amber-400'
-              : 'text-gray-500'
+              : 'text-[var(--ds-text-muted)]'
             }`}>
             {status === 'critical' ? '⚠️ ' : status === 'warning' ? '⚡ ' : '✓ '}
             {helpText}
@@ -189,18 +191,18 @@ const UsageItem = ({
 export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefresh }) => {
   if (isLoading && !usage) {
     return (
-      <div className="glass-panel p-6 rounded-2xl">
+      <Container variant="glass" padding="lg">
         <div className="flex items-center justify-center h-48">
-          <RefreshCw size={24} className="text-gray-500 animate-spin" />
+          <RefreshCw size={24} className="text-[var(--ds-text-muted)] animate-spin" />
         </div>
-      </div>
+      </Container>
     )
   }
 
   if (!usage) {
     return (
-      <div className="glass-panel p-6 rounded-2xl">
-        <div className="text-center text-gray-500 py-8">
+      <Container variant="glass" padding="lg">
+        <div className="text-center text-[var(--ds-text-muted)] py-8">
           Não foi possível carregar os dados de uso.
           <button
             onClick={onRefresh}
@@ -209,7 +211,7 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
             Tentar novamente
           </button>
         </div>
-      </div>
+      </Container>
     )
   }
 
@@ -228,16 +230,16 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
   }
 
   return (
-    <div className="glass-panel p-6 rounded-2xl">
+    <Container variant="glass" padding="lg">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-white">Uso da Infraestrutura</h3>
-          <p className="text-sm text-gray-500">Este mês</p>
+          <h3 className="text-lg font-semibold text-[var(--ds-text-primary)]">Uso da Infraestrutura</h3>
+          <p className="text-sm text-[var(--ds-text-muted)]">Este mês</p>
         </div>
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors disabled:opacity-50"
+          className="p-2 text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-hover)] rounded-lg transition-colors disabled:opacity-50"
         >
           <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
         </button>
@@ -249,26 +251,26 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
           ? 'bg-red-500/5 border-red-500/20'
           : usage.vercel.status === 'warning'
             ? 'bg-amber-500/5 border-amber-500/20'
-            : 'bg-zinc-900/50 border-white/10'
+            : 'bg-[var(--ds-bg-elevated)] border-[var(--ds-border-default)]'
           }`}>
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-zinc-800 text-amber-400">
+              <div className="p-2 rounded-lg bg-[var(--ds-bg-surface)] text-amber-400">
                 <Zap size={18} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-white text-sm">Vercel</h4>
+                  <h4 className="font-medium text-[var(--ds-text-primary)] text-sm">Vercel</h4>
                   {usage.vercel.plan && usage.vercel.plan !== 'unknown' && (
                     <span className={`px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded ${usage.vercel.plan === 'enterprise' ? 'bg-purple-500/20 text-purple-300' :
                       usage.vercel.plan === 'pro' ? 'bg-blue-500/20 text-blue-300' :
-                        'bg-zinc-700 text-zinc-300'
+                        'bg-[var(--ds-bg-surface)] text-[var(--ds-text-secondary)]'
                       }`}>
                       {usage.vercel.plan}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500">Uso mensal</p>
+                <p className="text-xs text-[var(--ds-text-muted)]">Uso mensal</p>
               </div>
             </div>
             <StatusIcon status={usage.vercel.status} />
@@ -277,10 +279,10 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
           {/* Function Invocations */}
           <div className="space-y-1 mb-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">Invocações</span>
-              <span className="text-gray-400">
-                <span className="font-mono text-white">{formatNumber(usage.vercel.functionInvocations)}</span>
-                <span className="text-gray-600"> / {formatNumber(usage.vercel.functionLimit)}</span>
+              <span className="text-[var(--ds-text-secondary)]">Invocações</span>
+              <span className="text-[var(--ds-text-secondary)]">
+                <span className="font-mono text-[var(--ds-text-primary)]">{formatNumber(usage.vercel.functionInvocations)}</span>
+                <span className="text-[var(--ds-text-muted)]"> / {formatNumber(usage.vercel.functionLimit)}</span>
               </span>
             </div>
             <ProgressBar percentage={usage.vercel.functionPercentage} status={
@@ -293,10 +295,10 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
           {/* Edge Requests */}
           <div className="space-y-1 mb-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">Edge Requests</span>
-              <span className="text-gray-400">
-                <span className="font-mono text-white">{formatNumber(usage.vercel.edgeRequests)}</span>
-                <span className="text-gray-600"> / {formatNumber(usage.vercel.edgeLimit)}</span>
+              <span className="text-[var(--ds-text-secondary)]">Edge Requests</span>
+              <span className="text-[var(--ds-text-secondary)]">
+                <span className="font-mono text-[var(--ds-text-primary)]">{formatNumber(usage.vercel.edgeRequests)}</span>
+                <span className="text-[var(--ds-text-muted)]"> / {formatNumber(usage.vercel.edgeLimit)}</span>
               </span>
             </div>
             <ProgressBar percentage={usage.vercel.edgePercentage} status={
@@ -309,10 +311,10 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
           {/* Build Minutes */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">Build (min)</span>
-              <span className="text-gray-400">
-                <span className="font-mono text-white">{formatNumber(usage.vercel.buildMinutes)}</span>
-                <span className="text-gray-600"> / {formatNumber(usage.vercel.buildLimit)}</span>
+              <span className="text-[var(--ds-text-secondary)]">Build (min)</span>
+              <span className="text-[var(--ds-text-secondary)]">
+                <span className="font-mono text-[var(--ds-text-primary)]">{formatNumber(usage.vercel.buildMinutes)}</span>
+                <span className="text-[var(--ds-text-muted)]"> / {formatNumber(usage.vercel.buildLimit)}</span>
               </span>
             </div>
             <ProgressBar percentage={usage.vercel.buildPercentage} status={
@@ -357,27 +359,27 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
           ? 'bg-red-500/5 border-red-500/20'
           : usage.database.status === 'warning'
             ? 'bg-amber-500/5 border-amber-500/20'
-            : 'bg-zinc-900/50 border-white/10'
+            : 'bg-[var(--ds-bg-elevated)] border-[var(--ds-border-default)]'
           }`}>
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-zinc-800 text-cyan-400">
+              <div className="p-2 rounded-lg bg-[var(--ds-bg-surface)] text-cyan-400">
                 <Database size={18} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-white text-sm">Database</h4>
+                  <h4 className="font-medium text-[var(--ds-text-primary)] text-sm">Database</h4>
                   {usage.database.plan && usage.database.plan !== 'unknown' && (
                     <span className={`px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded ${usage.database.plan === 'enterprise' ? 'bg-purple-500/20 text-purple-300' :
                       usage.database.plan === 'team' ? 'bg-indigo-500/20 text-indigo-300' :
                         usage.database.plan === 'pro' ? 'bg-emerald-500/20 text-emerald-300' :
-                          'bg-zinc-700 text-zinc-300'
+                          'bg-[var(--ds-bg-surface)] text-[var(--ds-text-secondary)]'
                       }`}>
                       {usage.database.plan}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500">Supabase</p>
+                <p className="text-xs text-[var(--ds-text-muted)]">Supabase</p>
               </div>
             </div>
             <StatusIcon status={usage.database.status} />
@@ -385,9 +387,9 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
           <div className="space-y-2">
             <ProgressBar percentage={usage.database.percentage} status={usage.database.status} />
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">
-                <span className="font-mono text-white">{usage.database.storageMB}MB</span>
-                <span className="text-gray-600"> / {usage.database.limitMB >= 1000 ? `${(usage.database.limitMB / 1000).toFixed(0)}GB` : `${usage.database.limitMB}MB`}</span>
+              <span className="text-[var(--ds-text-secondary)]">
+                <span className="font-mono text-[var(--ds-text-primary)]">{usage.database.storageMB}MB</span>
+                <span className="text-[var(--ds-text-muted)]"> / {usage.database.limitMB >= 1000 ? `${(usage.database.limitMB / 1000).toFixed(0)}GB` : `${usage.database.limitMB}MB`}</span>
               </span>
               <span className={`font-medium ${usage.database.status === 'critical' ? 'text-red-400' :
                 usage.database.status === 'warning' ? 'text-amber-400' :
@@ -399,12 +401,12 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
 
             {/* Bandwidth Row */}
             {usage.database.bandwidthMB !== undefined && (
-              <div className="mt-3 pt-3 border-t border-white/5">
+              <div className="mt-3 pt-3 border-t border-[var(--ds-border-subtle)]">
                 <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-gray-500">Bandwidth (egress)</span>
-                  <span className="text-gray-400">
-                    <span className="font-mono text-white">{(usage.database?.bandwidthMB ?? 0) < 1 ? `${Math.round((usage.database?.bandwidthMB ?? 0) * 1024)}KB` : `${(usage.database?.bandwidthMB ?? 0).toFixed(1)}MB`}</span>
-                    <span className="text-gray-600"> / {(usage.database?.bandwidthLimitMB ?? 0) >= 1000 ? `${((usage.database?.bandwidthLimitMB ?? 0) / 1000).toFixed(0)}GB` : `${usage.database?.bandwidthLimitMB ?? 0}MB`}</span>
+                  <span className="text-[var(--ds-text-muted)]">Bandwidth (egress)</span>
+                  <span className="text-[var(--ds-text-secondary)]">
+                    <span className="font-mono text-[var(--ds-text-primary)]">{(usage.database?.bandwidthMB ?? 0) < 1 ? `${Math.round((usage.database?.bandwidthMB ?? 0) * 1024)}KB` : `${(usage.database?.bandwidthMB ?? 0).toFixed(1)}MB`}</span>
+                    <span className="text-[var(--ds-text-muted)]"> / {(usage.database?.bandwidthLimitMB ?? 0) >= 1000 ? `${((usage.database?.bandwidthLimitMB ?? 0) / 1000).toFixed(0)}GB` : `${usage.database?.bandwidthLimitMB ?? 0}MB`}</span>
                   </span>
                 </div>
                 <ProgressBar
@@ -416,7 +418,7 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
 
             <p className={`text-xs mt-2 ${usage.database.status === 'critical' ? 'text-red-400' :
               usage.database.status === 'warning' ? 'text-amber-400' :
-                'text-gray-500'
+                'text-[var(--ds-text-muted)]'
               }`}>
               {usage.database.status === 'critical' ? '⚠️ Armazenamento quase cheio!' :
                 usage.database.status === 'warning' ? '⚡ Monitorar espaço' :
@@ -442,11 +444,11 @@ export const UsagePanel: React.FC<UsagePanelProps> = ({ usage, isLoading, onRefr
       {usage.whatsapp.status === 'warning' && (
         <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
           <p className="text-xs text-amber-300">
-            💡 <strong>Dica:</strong> Você pode subir pro próximo tier do WhatsApp
+            <strong>Dica:</strong> Você pode subir pro próximo tier do WhatsApp
             alcançando mais {formatNumber(Math.max(usage.whatsapp.tierLimit - usage.whatsapp.messagesSent, 0))} contatos com boa qualidade.
           </p>
         </div>
       )}
-    </div>
+    </Container>
   )
 }

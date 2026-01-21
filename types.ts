@@ -127,6 +127,10 @@ export interface Campaign {
   flowName?: string | null;
   // Computed field (somente no detalhe da campanha)
   submissionsCount?: number;
+  // Organization (Folders & Tags)
+  folderId?: string | null;
+  folder?: CampaignFolder | null;
+  tags?: CampaignTag[];
 }
 
 export interface Contact {
@@ -363,7 +367,11 @@ export type RealtimeTable =
   | 'account_alerts'
   | 'template_projects'
   | 'template_project_items'
-  | 'flow_submissions';
+  | 'flow_submissions'
+  | 'inbox_conversations'
+  | 'inbox_messages'
+  | 'ai_agents'
+  | 'ai_agent_logs';
 
 /**
  * Event types for Realtime subscriptions
@@ -517,4 +525,275 @@ export interface CreateTemplateProjectDTO {
   prompt: string;
   status?: string;
   items: Omit<TemplateProjectItem, 'id' | 'project_id' | 'created_at' | 'updated_at'>[];
+}
+
+// =============================================================================
+// INBOX & AI AGENTS TYPES
+// =============================================================================
+
+// T001: Type definitions for Inbox
+export type ConversationStatus = 'open' | 'closed';
+export type ConversationMode = 'bot' | 'human';
+export type ConversationPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type MessageDirection = 'inbound' | 'outbound';
+export type InboxMessageType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'template' | 'interactive' | 'internal_note';
+export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type Sentiment = 'positive' | 'neutral' | 'negative' | 'frustrated';
+
+// T002: InboxConversation interface
+export interface InboxConversation {
+  id: string;
+  contact_id: string | null;
+  ai_agent_id: string | null;
+  phone: string;
+  status: ConversationStatus;
+  mode: ConversationMode;
+  priority: ConversationPriority;
+  unread_count: number;
+  total_messages: number;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  automation_paused_until: string | null;
+  automation_paused_by: string | null;
+  handoff_summary: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  contact?: Contact;
+  labels?: InboxLabel[];
+  ai_agent?: AIAgent;
+}
+
+// T003: InboxMessage interface
+export interface InboxMessage {
+  id: string;
+  conversation_id: string;
+  direction: MessageDirection;
+  content: string;
+  message_type: InboxMessageType;
+  media_url: string | null;
+  whatsapp_message_id: string | null;
+  delivery_status: DeliveryStatus;
+  ai_response_id: string | null;
+  ai_sentiment: Sentiment | null;
+  ai_sources: Array<{ title: string; content: string }> | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+}
+
+// T004: AIAgent interface
+export type EmbeddingProvider = 'google' | 'openai' | 'voyage' | 'cohere';
+export type RerankProvider = 'cohere' | 'together';
+
+export interface AIAgent {
+  id: string;
+  name: string;
+  system_prompt: string;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  is_active: boolean;
+  is_default: boolean;
+  debounce_ms: number;
+  // RAG: Embedding config
+  embedding_provider: EmbeddingProvider | null;
+  embedding_model: string | null;
+  embedding_dimensions: number | null;
+  // RAG: Reranking config (opcional)
+  rerank_enabled: boolean | null;
+  rerank_provider: RerankProvider | null;
+  rerank_model: string | null;
+  rerank_top_k: number | null;
+  // RAG: Search config
+  rag_similarity_threshold: number | null;
+  rag_max_results: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// T005: AIAgentLog interface
+export interface AIAgentLog {
+  id: string;
+  ai_agent_id: string;
+  conversation_id: string | null;
+  input_message: string;
+  output_message: string | null;
+  response_time_ms: number | null;
+  model_used: string | null;
+  tokens_used: number | null;
+  sources_used: Array<{ title: string; content: string }> | null;
+  error_message: string | null;
+  metadata: {
+    messageIds?: string[];
+    sentiment?: string;
+    confidence?: number;
+    shouldHandoff?: boolean;
+    handoffReason?: string;
+    toolCalls?: Array<{ name: string; args: unknown; result: unknown }>;
+  } | null;
+  created_at: string;
+}
+
+// T057: AIKnowledgeFile interface
+export type KnowledgeFileIndexingStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'local_only';
+
+export interface AIKnowledgeFile {
+  id: string;
+  agent_id: string;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  content: string | null;
+  external_file_id: string | null; // DEPRECATED: Era usado para Google File Search
+  external_file_uri: string | null; // DEPRECATED: Era usado para Google File Search
+  indexing_status: KnowledgeFileIndexingStatus;
+  chunks_count: number; // Número de chunks indexados no pgvector
+  created_at: string;
+  updated_at: string;
+}
+
+// T058: AIEmbedding interface (para referência - dados ficam no pgvector)
+export interface AIEmbedding {
+  id: string;
+  agent_id: string;
+  file_id: string | null;
+  content: string;
+  dimensions: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+// T006: InboxLabel interface
+export interface InboxLabel {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+// T007: InboxQuickReply interface
+export interface InboxQuickReply {
+  id: string;
+  title: string;
+  content: string;
+  shortcut: string | null;
+  created_at: string;
+}
+
+// DTO types for API operations
+export interface CreateInboxConversationDTO {
+  phone: string;
+  contact_id?: string;
+  ai_agent_id?: string;
+  mode?: ConversationMode;
+}
+
+export interface UpdateInboxConversationDTO {
+  status?: ConversationStatus;
+  mode?: ConversationMode;
+  priority?: ConversationPriority;
+  ai_agent_id?: string;
+  labels?: string[]; // label IDs
+}
+
+export interface CreateInboxMessageDTO {
+  conversation_id: string;
+  direction: MessageDirection;
+  content: string;
+  message_type?: InboxMessageType;
+  media_url?: string | null;
+  whatsapp_message_id?: string | null;
+  delivery_status?: DeliveryStatus;
+  ai_response_id?: string | null;
+  ai_sentiment?: Sentiment | null;
+  ai_sources?: Array<{ title: string; content: string }> | null;
+  payload?: Record<string, unknown>;
+}
+
+export interface CreateAIAgentDTO {
+  name: string;
+  system_prompt: string;
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  is_active?: boolean;
+  debounce_ms?: number;
+}
+
+export interface UpdateAIAgentDTO extends Partial<CreateAIAgentDTO> {}
+
+export interface CreateInboxLabelDTO {
+  name: string;
+  color?: string;
+}
+
+export interface CreateInboxQuickReplyDTO {
+  title: string;
+  content: string;
+  shortcut?: string;
+}
+
+// AI Response Schema (from support-agent)
+export interface AIAgentResponse {
+  text: string;
+  sentiment: Sentiment;
+  suggestedTags?: string[];
+  sources?: Array<{ title: string; content: string }>;
+}
+
+// Handoff request (when AI decides to handoff)
+export interface HandoffRequest {
+  reason: string;
+  summary: string;
+  priority: ConversationPriority;
+}
+
+// Knowledge base file status
+export type KnowledgeFileStatus = 'pending' | 'indexing' | 'indexed' | 'failed';
+
+export interface KnowledgeFile {
+  id: string;
+  name: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  status: KnowledgeFileStatus;
+  error: string | null;
+  indexed_at: string | null;
+  created_at: string;
+}
+
+// =============================================================================
+// CAMPAIGN ORGANIZATION (Folders & Tags)
+// =============================================================================
+
+export interface CampaignFolder {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+  campaignCount?: number; // Computed
+}
+
+export interface CampaignTag {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface CreateCampaignFolderDTO {
+  name: string;
+  color?: string;
+}
+
+export interface UpdateCampaignFolderDTO {
+  name?: string;
+  color?: string;
+}
+
+export interface CreateCampaignTagDTO {
+  name: string;
+  color?: string;
 }
