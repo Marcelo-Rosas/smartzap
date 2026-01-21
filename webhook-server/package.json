@@ -1,0 +1,15 @@
+{
+  "name": "smartzap-webhook",
+  "version": "1.0.0",
+  "description": "WhatsApp Webhook Server for SmartZap",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
