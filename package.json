@@ -73,7 +73,7 @@
     "@uiw/codemirror-themes": "^4.25.3",
     "@uiw/react-codemirror": "^4.25.3",
     "@upstash/qstash": "^2.8.4",
-    "@upstash/redis": "^1.35.8",
+    "@upstash/redis": "^1.36.1",
     "@upstash/workflow": "0.3.0-rc",
     "@xyflow/react": "^12.9.2",
     "ai": "^6.0.27",
