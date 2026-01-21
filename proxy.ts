@@ -6,7 +6,7 @@ import {
     isPublicEndpoint,
     unauthorizedResponse,
     forbiddenResponse
-} from '@/lib/auth'
+} from './lib/auth'
 
 export const config = {
     matcher: [
@@ -17,7 +17,7 @@ export const config = {
 
 // Routes that don't require user authentication
 const PUBLIC_PAGES = ['/login', '/setup', '/debug-auth', '/f']
-const PUBLIC_API_ROUTES = ['/api/auth', '/api/webhook', '/api/health', '/api/system', '/api/setup', '/api/debug', '/api/database', '/api/campaign/workflow', '/api/account/alerts', '/api/public/lead-forms', '/api/builder']
+const PUBLIC_API_ROUTES = ['/api/auth', '/api/webhook', '/api/health', '/api/system', '/api/setup', '/api/debug', '/api/database', '/api/campaign/workflow', '/api/account/alerts', '/api/public/lead-forms', '/api/builder', '/api/test-redis']
 
 export async function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname
