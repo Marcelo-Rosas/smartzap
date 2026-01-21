@@ -1,10 +1,6 @@
 import { Redis } from '@upstash/redis';
 import { NextResponse } from 'next/server';
 
-// Initialize Redis
-// Note: This relies on UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN being set in .env.local
-const redis = Redis.fromEnv();
-
 export const POST = async () => {
     try {
         // Verify env vars
@@ -15,6 +11,9 @@ export const POST = async () => {
         if (!url || !token) {
             throw new Error('Missing Upstash credentials in env');
         }
+
+        // Initialize Redis after env validation
+        const redis = Redis.fromEnv();
 
         // Set a test item first to ensure there is something to get
         await redis.set("item", "Hello from Upstash Redis!");
