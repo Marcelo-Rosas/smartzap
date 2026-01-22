@@ -11,10 +11,18 @@ import { useConversationWithMessages } from './useConversation'
 import { useLabels } from './useLabels'
 import { useQuickReplies } from './useQuickReplies'
 import { aiAgentService, type UpdateAIAgentParams } from '@/services/aiAgentService'
-import type { ConversationStatus, ConversationMode, ConversationPriority, AIAgent } from '@/types'
+import type { ConversationStatus, ConversationMode, ConversationPriority, AIAgent, InboxConversation, InboxLabel, InboxQuickReply } from '@/types'
+
+export interface InboxInitialData {
+  conversations?: InboxConversation[]
+  labels?: InboxLabel[]
+  quickReplies?: InboxQuickReply[]
+  totalUnread?: number
+}
 
 export interface UseInboxOptions {
   initialConversationId?: string | null
+  initialData?: InboxInitialData
 }
 
 export function useInbox(options: UseInboxOptions = {}) {
@@ -56,6 +64,7 @@ export function useInbox(options: UseInboxOptions = {}) {
     mode: modeFilter ?? undefined,
     labelId: labelFilter ?? undefined,
     search: search || undefined,
+    initialData: options.initialData?.conversations,
   })
 
   // Conversation mutations
@@ -76,10 +85,14 @@ export function useInbox(options: UseInboxOptions = {}) {
   } = useConversationWithMessages(selectedId)
 
   // Labels
-  const { labels, isLoading: isLoadingLabels } = useLabels()
+  const { labels, isLoading: isLoadingLabels } = useLabels({
+    initialData: options.initialData?.labels,
+  })
 
   // Quick Replies
-  const { quickReplies, isLoading: isLoadingQuickReplies, refetch: refetchQuickReplies } = useQuickReplies()
+  const { quickReplies, isLoading: isLoadingQuickReplies, refetch: refetchQuickReplies } = useQuickReplies({
+    initialData: options.initialData?.quickReplies,
+  })
 
   // ==========================================================================
   // AI Agent Edit Modal State
@@ -154,12 +167,20 @@ export function useInbox(options: UseInboxOptions = {}) {
   )
 
   // Handle sending a message
+  // Auto-transfers to human mode when operator sends a manual message
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (!selectedId) return
+
+      // Auto-transfer to human mode if currently in bot mode
+      // This prevents bot from responding on top of manual responses
+      if (selectedConversation?.mode === 'bot') {
+        await conversationMutations.switchMode({ id: selectedId, mode: 'human' })
+      }
+
       await sendMessage({ content, message_type: 'text' })
     },
-    [selectedId, sendMessage]
+    [selectedId, sendMessage, selectedConversation?.mode, conversationMutations]
   )
 
   // Toggle mode (bot <-> human)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
+import { ExternalLink, Loader2, CheckCircle2, ChevronDown } from 'lucide-react';
 import { StepCard } from '../StepCard';
 import { ServiceIcon } from '../ServiceIcon';
 import { TokenInput } from '../TokenInput';
@@ -330,16 +330,19 @@ export function SupabaseStep({ onComplete }: SupabaseStepProps) {
             <Loader2 className="w-20 h-20 text-emerald-500 animate-spin" />
           </div>
 
-          {/* Status atual */}
+          {/* Status atual - Narrativa de Despertar */}
           <h2 className="text-lg font-medium text-zinc-100">
-            {phase === 'listing_orgs' && 'Analisando conta...'}
-            {phase === 'creating' && 'Criando projeto...'}
-            {phase === 'waiting' && 'Aguardando ativação...'}
-            {phase === 'resolving' && 'Finalizando...'}
+            {phase === 'listing_orgs' && 'Olhando ao redor...'}
+            {phase === 'creating' && 'Tomando forma...'}
+            {phase === 'waiting' && 'Despertando...'}
+            {phase === 'resolving' && 'Quase lá...'}
           </h2>
 
           <p className="mt-2 text-sm text-zinc-400">
-            {statusMessage}
+            {phase === 'listing_orgs' && 'Reconhecendo o ambiente'}
+            {phase === 'creating' && 'Seu assistente está nascendo'}
+            {phase === 'waiting' && 'Abrindo os olhos pela primeira vez'}
+            {phase === 'resolving' && 'Aprendendo a se comunicar'}
           </p>
 
           {/* Progress steps */}
@@ -417,16 +420,24 @@ export function SupabaseStep({ onComplete }: SupabaseStepProps) {
           />
         </div>
 
-        {/* Help link */}
-        <a
-          href="https://supabase.com/dashboard/account/tokens"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-emerald-400 transition-colors"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Como criar um Personal Access Token?
-        </a>
+        {/* Collapsible help */}
+        <details className="w-full mt-6 group">
+          <summary className="flex items-center justify-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 cursor-pointer list-none transition-colors">
+            <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
+            Como criar o token?
+          </summary>
+          <div className="mt-3 p-3 rounded-lg bg-zinc-800/50 text-left space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+            <ol className="text-xs text-zinc-400 space-y-1.5 list-decimal list-inside">
+              <li>Acesse <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">supabase.com/dashboard/account/tokens</a></li>
+              <li>Clique em <strong className="text-zinc-300">Generate new token</strong></li>
+              <li>Nome: <strong className="text-zinc-300">smartzap</strong></li>
+              <li>Copie e cole o token acima</li>
+            </ol>
+            <p className="text-xs text-zinc-500 pt-1 border-t border-zinc-700/50">
+              💡 O projeto Supabase será criado automaticamente
+            </p>
+          </div>
+        </details>
       </div>
     </StepCard>
   );

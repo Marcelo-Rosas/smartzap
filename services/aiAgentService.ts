@@ -32,6 +32,11 @@ export interface CreateAIAgentParams {
   // RAG: Search config
   rag_similarity_threshold?: number
   rag_max_results?: number
+  // Handoff config
+  handoff_enabled?: boolean
+  handoff_instructions?: string | null
+  // Booking tool config
+  booking_tool_enabled?: boolean
 }
 
 export interface UpdateAIAgentParams {
@@ -55,6 +60,11 @@ export interface UpdateAIAgentParams {
   // RAG: Search config
   rag_similarity_threshold?: number
   rag_max_results?: number
+  // Handoff config
+  handoff_enabled?: boolean
+  handoff_instructions?: string | null
+  // Booking tool config
+  booking_tool_enabled?: boolean
 }
 
 // =============================================================================

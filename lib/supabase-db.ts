@@ -1777,13 +1777,35 @@ export const dashboardDb = {
 
 export const templateProjectDb = {
     getAll: async (): Promise<TemplateProject[]> => {
+        // Busca projetos com contagem dinâmica de items aprovados
         const { data, error } = await supabase
             .from('template_projects')
-            .select('*')
+            .select(`
+                *,
+                template_project_items (
+                    id,
+                    meta_status
+                )
+            `)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data as TemplateProject[];
+
+        // Calcula approved_count e template_count dinamicamente
+        return (data || []).map(project => {
+            const items = project.template_project_items || [];
+            const approvedCount = items.filter((i: { meta_status?: string }) => i.meta_status === 'APPROVED').length;
+            const templateCount = items.length;
+
+            // Remove o array de items do retorno (não precisa na lista)
+            const { template_project_items, ...projectWithoutItems } = project;
+
+            return {
+                ...projectWithoutItems,
+                template_count: templateCount,
+                approved_count: approvedCount
+            } as TemplateProject;
+        });
     },
 
     getById: async (id: string): Promise<TemplateProject & { items: TemplateProjectItem[] }> => {
@@ -1876,6 +1898,21 @@ export const templateProjectDb = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    update: async (id: string, updates: Partial<{ title: string; status: string }>): Promise<TemplateProject> => {
+        const { data, error } = await supabase
+            .from('template_projects')
+            .update({
+                ...updates,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as TemplateProject;
     }
 };
 

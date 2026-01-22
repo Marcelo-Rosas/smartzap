@@ -1,380 +1,491 @@
-# SmartZap (SaaS de automação WhatsApp)
+# SmartZap
 
-<div align="center">
-
-![SmartZap](https://img.shields.io/badge/SmartZap-WhatsApp%20Marketing-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
-![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
-
-CRM + automação de campanhas no WhatsApp (Cloud API), com fila/workflows (Upstash QStash) e geração de conteúdo via IA.
-
-<p align="center">
-   <a href="docs/GUIA_CONFIGURACAO.md">
-      <img
-         alt="Guia de Configuração — Clique aqui"
-         src="docs/assets/guia-configuracao-banner-v1.svg"
-         width="920"
-      />
-   </a>
-</p>
-
-</div>
+> Automação de WhatsApp com IA integrada. Dispare campanhas, converse com clientes e deixe agentes de IA atenderem por você.
 
 ---
 
-## Navegação rápida
+## Índice
 
-- **Guia (produção)**: [docs/GUIA_CONFIGURACAO.md](docs/GUIA_CONFIGURACAO.md)
-- **Guia (local / dev)**: [docs/GUIA_DE_INSTALACAO.md](docs/GUIA_DE_INSTALACAO.md)
-- **Arquitetura**: [UI → API → filas → Meta → webhook → DB](#arquitetura-primeiro-como-tudo-se-conecta)
-- **Rodar local**: [Como rodar localmente](#como-rodar-localmente)
-- **Docs internas**: [Documentação interna](#documentacao-interna)
+- [Sobre](#-sobre)
+- [O que você pode fazer](#-o-que-você-pode-fazer)
+- [Instalação Rápida](#-instalação-rápida)
+- [Primeiros Passos](#-primeiros-passos)
+- [Como Usar](#-como-usar)
+- [Configurações](#%EF%B8%8F-configurações)
+- [Problemas Comuns](#-problemas-comuns)
+- [Suporte](#-suporte)
 
-> [!IMPORTANT]
-> Segurança: não comite segredos. Se você for adicionar prints na pasta `docs/`, use imagens sanitizadas (existe `scripts/redact_docs_images.py` e `scripts/scan-secrets.mjs`).
+---
 
-## TL;DR (como começar)
+## Sobre
 
-Escolha seu caminho:
+**SmartZap** é uma plataforma completa de automação de WhatsApp que ajuda você a se comunicar com clientes de forma mais inteligente e produtiva.
 
-### Produção (recomendado: Vercel + Wizard)
+### Por que escolher SmartZap?
 
-- Siga o guia completo: **[docs/GUIA_CONFIGURACAO.md](docs/GUIA_CONFIGURACAO.md)**
-- Você vai usar o Wizard em `/setup` para configurar Supabase + QStash (+ WhatsApp opcional).
+- **Instalação em minutos**: Deploy na Vercel + wizard que configura tudo
+- **Campanhas em massa**: Dispare mensagens para milhares de contatos com templates aprovados
+- **Inbox em tempo real**: Converse com clientes direto do navegador
+- **Agentes de IA**: Deixe a IA responder automaticamente com contexto personalizado
+- **Memória de conversas**: A IA lembra do histórico de cada cliente
+- **Funciona em qualquer lugar**: Instale como app (PWA) e receba notificações
 
-### Local (dev)
+---
 
-- Siga o guia rápido: **[docs/GUIA_DE_INSTALACAO.md](docs/GUIA_DE_INSTALACAO.md)**
-- Em geral: instalar deps → `.env.local` → `npm run dev`.
+## O que você pode fazer
 
-> [!TIP]
-> Se você for rodar o Wizard em produção, prefira o domínio principal `https://SEU-PROJETO.vercel.app` (Production) — não o link de Preview.
+### Campanhas de WhatsApp
 
-## O que é
+- Dispare mensagens para toda sua base de contatos
+- Use templates aprovados pela Meta (marketing, utilidade, autenticação)
+- Acompanhe métricas em tempo real (enviados, entregues, lidos)
+- Pré-validação antes do disparo para evitar erros
+- Reenvio automático para contatos que falharam
 
-O SmartZap é uma aplicação full-stack (Next.js App Router) que permite:
+### Inbox (Chat em tempo real)
 
-- gerenciar **contatos** e campos personalizados;
-- visualizar/sincronizar/criar **templates** do WhatsApp;
-- criar e disparar **campanhas** (envio em massa) com pré-validação;
-- acompanhar **métricas** e alertas de conta;
-- configurar integrações (Supabase, Meta, Upstash, IA) por variáveis de ambiente e/ou wizard.
+- Receba mensagens de clientes direto no navegador
+- Responda manualmente ou deixe a IA atender
+- Veja histórico completo de cada conversa
+- Notificações push quando chegam mensagens
 
-Este repositório também é usado como base educacional. A pasta `tmp/` pode conter materiais extras e utilitários.
+### Agentes de IA
 
-## Stack
+- Configure agentes com personalidade e instruções
+- A IA responde automaticamente às mensagens
+- Memória persistente: a IA lembra do contexto de cada cliente
+- Logs completos de todas as interações
 
-- **Frontend**: Next.js 16, React 19, Tailwind CSS v4, shadcn/ui + Radix.
-- **Backend**: API Routes (Next.js, runtime Node.js) + integrações externas.
-- **Banco**: Supabase (PostgreSQL).
-- **Fila/Workflows**: Upstash QStash.
-- **IA**: Vercel AI SDK v6 com suporte a Gemini/OpenAI/Anthropic.
-- **WhatsApp**: Meta WhatsApp Cloud API (Graph API v24+).
+### Gestão de Contatos
 
-## Arquitetura (primeiro: como tudo se conecta)
+- Importe contatos via CSV
+- Campos personalizados para segmentação
+- Status de opt-in/opt-out automático
+- Validação de números no formato internacional
 
-Esta seção existe para responder rapidamente:
+### Templates do WhatsApp
 
-- **quem chama quem** (UI → API → filas → Meta → webhook → DB → UI)
-- **onde cada dado mora** (o que é fonte da verdade vs cache)
-- **onde ficam as integrações** (Supabase, Upstash/QStash, Meta)
+- Sincronize templates aprovados da sua conta Meta
+- Visualize preview antes de usar
+- Crie novos templates direto da plataforma
 
-> O GitHub renderiza Mermaid em Markdown usando blocos ` ```mermaid `.
+### Lead Forms
 
-### Mapa de serviços (UI → Next.js → Upstash → Meta → Supabase)
+- Crie formulários de captura embeddáveis
+- Receba leads automaticamente na plataforma
 
-```mermaid
-flowchart TB
-   %% ========== Client ==========
-   subgraph B["Browser (Dashboard)"]
-      UI["UI (Pages/Components)"]
-      Hooks["Hooks (React Query + estado)"]
-      Services["Services (fetch para /api)"]
-      UI --> Hooks --> Services
-   end
+---
 
-   %% ========== App ==========
-   subgraph N["Next.js (App Router / Node runtime)"]
-      API["API Routes\napp/api/**/route.ts"]
-      Lib["Lib\n(regras, validação, integrações)"]
-      API --> Lib
-   end
+## Instalação Rápida
 
-   Services --> API
+> **Tempo estimado**: 15-20 minutos
+>
+> **Método recomendado**: Fork → Vercel → Wizard
 
-   %% ========== Data ==========
-   subgraph S["Supabase (PostgreSQL)"]
-      Settings["settings\n(credenciais/config)"]
-      Campaigns["campaigns\n(status/contadores)"]
-      CC["campaign_contacts\n(status por contato + message_id)"]
-      Contacts["contacts"]
-      Templates["templates\n(cache local)"]
-      Alerts["account_alerts"]
-   end
+Este guia vai te levar do zero até ter o SmartZap funcionando.
 
-   Lib --> Settings
-   Lib --> Campaigns
-   Lib --> CC
-   Lib --> Contacts
-   Lib --> Templates
-   Lib --> Alerts
+### O que você vai fazer
 
-   %% UI updates
-   S -->|"Realtime/queries"| Hooks
-
-   %% ========== Async ==========
-   subgraph U["Upstash"]
-      QStash["QStash / Workflow\n(fila + steps duráveis)"]
-   end
-
-   Lib --> QStash
-   QStash --> API
-
-   %% ========== External ==========
-   subgraph M["Meta (WhatsApp Cloud API / Graph API)"]
-      WA["/messages (envio)"]
-      WH["Webhook callbacks\n(delivered/read/failed)"]
-   end
-
-   Lib --> WA
-   WH --> API
-
-   Settings -.->|"credenciais: DB (primário) / ENV (fallback)"| Lib
-```
-
-<details>
-  <summary><strong>Fluxo de campanha (do clique ao webhook)</strong></summary>
+1. Fazer fork do repositório no GitHub
+2. Fazer deploy na Vercel
+3. Rodar o wizard de instalação
+4. Começar a usar!
 
 ```mermaid
-sequenceDiagram
-   autonumber
-   participant U as Usuário
-   participant UI as Dashboard (Browser)
-   participant API as Next.js API Routes
-   participant DB as Supabase (Postgres)
-   participant Q as Upstash QStash/Workflow
-   participant WA as Meta WhatsApp Cloud API
-   participant WH as Webhook (/api/webhook)
-
-   U->>UI: Disparar campanha
-   UI->>API: POST /api/campaign/dispatch
-   API->>DB: Buscar campanha/contatos/template local
-   API->>DB: Buscar credenciais (settings)
-   API->>Q: Iniciar workflow (payload inclui phoneNumberId + accessToken)
-   API-->>UI: 202/200 (agendado/iniciando)
-
-   loop Steps do workflow (batches)
-      Q->>API: POST /api/campaign/workflow (step)
-      API->>DB: Claim idempotente (campaign_contacts)
-      API->>WA: POST /v24.0/{phoneNumberId}/messages
-      WA-->>API: message_id ou erro
-      API->>DB: Salva message_id + status sent/failed
-   end
-
-   note over WA,WH: A Meta envia eventos assíncronos depois
-
-   WA->>WH: POST webhook (delivered/read/failed)
-   WH->>DB: Atualiza status + incrementa contadores (RPC)
-   DB-->>UI: UI enxerga via queries/realtime
+flowchart LR
+    A[Fork no GitHub] --> B[Deploy na Vercel]
+    B --> C[Abrir /install/start]
+    C --> D[Wizard configura tudo]
+    D --> E[Pronto!]
 ```
 
-</details>
-
-<details>
-  <summary><strong>Modelo mental do banco (o que persiste)</strong></summary>
-
-O relacionamento que amarra tudo em campanhas é:
-
-`campaigns` → `campaign_contacts` (por contato, com `message_id`) → atualizado por workflow e pelo webhook.
-
-```mermaid
-erDiagram
-   SETTINGS ||--o{ CAMPAIGNS : "configura/cria"
-   CONTACTS ||--o{ CAMPAIGN_CONTACTS : "participa"
-   CAMPAIGNS ||--o{ CAMPAIGN_CONTACTS : "possui"
-   TEMPLATES ||--o{ CAMPAIGNS : "baseado_em"
-   CAMPAIGNS ||--o{ ACCOUNT_ALERTS : "pode_gerar"
-
-   SETTINGS {
-      string id
-      string phoneNumberId
-      string businessAccountId
-      string accessToken
-      string verifyToken
-   }
-
-   CONTACTS {
-      string id
-      string phone
-      string name
-      string status
-   }
-
-   TEMPLATES {
-      string name
-      string language
-      string spec_hash
-   }
-
-   CAMPAIGNS {
-      string id
-      string templateName
-      string status
-      int recipients
-      int sent
-      int delivered
-      int read
-      int failed
-      int skipped
-   }
-
-   CAMPAIGN_CONTACTS {
-      string id
-      string campaign_id
-      string contact_id
-      string phone
-      string status
-      string message_id
-   }
-
-   ACCOUNT_ALERTS {
-      string id
-      string type
-      int code
-      string message
-      bool dismissed
-   }
-```
-
-</details>
-
-### Como navegar no código (Page → Hook → Service → API)
-
-### Padrão de frontend (Page → Hook → Service → API)
-
-Em geral, as telas seguem o padrão:
-
-- `app/(dashboard)/**/page.tsx`: página “fina” que apenas conecta dados/handlers.
-- `hooks/**`: controller hooks (React Query + estado de UI).
-- `services/**`: client de API (fetch para rotas em `app/api/**`).
-- `app/api/**/route.ts`: rotas server-side (validação, DB, integrações).
-
-### Pastas principais
-
-```txt
-app/                  # Next.js App Router (páginas + API)
-components/            # UI (shadcn) e views por feature
-hooks/                 # Controller hooks (React Query)
-services/              # Camada de acesso às rotas da API
-lib/                   # Regras de negócio, utilitários e integrações
-supabase/              # Migrations/artefatos do banco
-scripts/               # Scripts utilitários (dev/ops)
-```
-
-## Como rodar localmente
-
-> [!TIP]
-> Quer o caminho mais curto para rodar local? Siga: **[docs/GUIA_DE_INSTALACAO.md](docs/GUIA_DE_INSTALACAO.md)**.
-
-<details>
-   <summary><strong>Ver passo a passo completo (local)</strong></summary>
+---
 
 ### Pré-requisitos
 
-- Node.js 20+ (recomendado)
-- Conta no Supabase (para o banco)
-- Conta no Meta (WhatsApp Cloud API) para uso real
-- Conta no Upstash (QStash) para disparos em lote
+Antes de começar, você precisa de contas nestes serviços:
 
-### 1) Instalar dependências
+| Serviço | Para quê | Link |
+|---------|----------|------|
+| **GitHub** | Código do projeto | [github.com](https://github.com/) |
+| **Vercel** | Hospedagem | [vercel.com](https://vercel.com/) |
+| **Supabase** | Banco de dados | [supabase.com](https://supabase.com/) |
+| **Upstash** | QStash (fila) + Redis (cache) | [upstash.com](https://upstash.com/) |
+| **Meta Business** | API do WhatsApp (depois) | [business.facebook.com](https://business.facebook.com/) |
 
-```bash
-npm install
-```
-
-### 2) Configurar variáveis de ambiente
-
-Copie o arquivo de exemplo:
-
-```bash
-cp .env.example .env.local
-```
-
-Preencha os valores no `.env.local`. O arquivo `.env.example` já descreve cada variável.
-
-Principais variáveis (resumo):
-
-- **Supabase**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`
-- **WhatsApp Cloud API**: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`
-- **Webhook (verify token)**: preferencialmente via Supabase settings (`webhook_verify_token`) e, como fallback, `WEBHOOK_VERIFY_TOKEN`
-- **Fila**: `QSTASH_TOKEN`
-- **Segurança local**: `MASTER_PASSWORD`, `SMARTZAP_API_KEY`, `SMARTZAP_ADMIN_KEY`
-- **IA (opcional)**: `GEMINI_API_KEY` (ou chaves de OpenAI/Anthropic)
-
-### 3) Subir o servidor
-
-```bash
-npm run dev
-```
-
-Abra `http://localhost:3000`.
-
-</details>
-
-## Uso (fluxo recomendado)
-
-1. Faça login (senha definida em `MASTER_PASSWORD`).
-2. Vá em **Configurações** e conecte:
-   - Supabase (se ainda não estiver configurado)
-   - WhatsApp Cloud API
-   - QStash (para campanhas)
-   - IA (opcional)
-3. Importe contatos (CSV) ou cadastre manualmente.
-4. Sincronize/crie templates.
-5. Crie uma campanha e rode o **precheck** antes do disparo.
-
-## Comandos úteis
-
-```bash
-npm run dev
-npm run lint
-npm run build
-npm run test
-npm run test:e2e
-```
-
-## Deploy
-
-O deploy padrão é na Vercel.
-
-- Configure as variáveis de ambiente na Vercel (pode usar o wizard do app).
-- Rode build para validar: `npm run build`.
-
-## Troubleshooting
-
-### “Supabase not configured. Complete setup at /setup”
-
-As variáveis do Supabase não estão preenchidas (ou estão incorretas). Confira:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (publishable/anon)
-- `SUPABASE_SECRET_KEY` (service role/secret — backend apenas)
-
-### Erros de permissão/#200 no Meta
-
-Geralmente indica token sem permissões adequadas.
-
-### Rate limit por par (131056)
-
-Isso acontece quando o envio para o mesmo destinatário ocorre rápido demais. O projeto inclui tratamento e tempos de espera recomendados.
+> **Dica**: Crie as contas antes de começar e deixe abertas em abas diferentes.
 
 ---
 
-## Documentação interna
+### Passo 1: Fork no GitHub
 
-Além deste README, veja:
+1. Acesse o repositório do SmartZap
+2. Clique no botão **Fork** (canto superior direito)
+3. Escolha sua conta pessoal ou organização
+4. Aguarde o fork ser criado
 
-- `docs/GUIA_CONFIGURACAO.md`
-- `docs/guia.md`
+> **Pronto quando**: Você ver o repositório `smartzap` na sua conta do GitHub
 
+---
+
+### Passo 2: Deploy na Vercel
+
+1. Acesse [vercel.com](https://vercel.com/) e faça login
+2. Clique em **Add New Project**
+3. Conecte sua conta do GitHub (se ainda não conectou)
+4. Selecione **smartzap** (seu fork)
+5. Clique em **Deploy**
+
+> **Aguarde**: O deploy leva cerca de 2-3 minutos
+
+6. Quando terminar, copie a URL do seu projeto (ex: `https://smartzap-abc123.vercel.app`)
+
+> **Pronto quando**: Você tiver uma URL funcionando
+
+---
+
+### Passo 3: Rodar o Wizard de Instalação
+
+1. **Acesse o wizard**
+   - Abra: `https://SEU-PROJETO.vercel.app/install/start`
+
+2. **O wizard tem 5 etapas:**
+
+   **Etapa 1 - Seus dados:**
+   - Nome completo
+   - Email
+   - Senha (será usada para login)
+
+   **Etapa 2 - Vercel:**
+   - Vá em [vercel.com/account/tokens](https://vercel.com/account/tokens)
+   - Clique em **Create Token**
+   - Dê um nome (ex: "SmartZap Installer")
+   - Cole o token no wizard e selecione o projeto
+
+   **Etapa 3 - Supabase:**
+   - Vá em [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
+   - Clique em **Generate new token**
+   - Nome: **smartzap**
+   - Cole o token no wizard
+   - 💡 O projeto será criado automaticamente!
+
+   **Etapa 4 - QStash:**
+   - Crie uma conta no [console.upstash.com](https://console.upstash.com)
+   - Clique em **QStash** no menu lateral
+   - Na aba **Details**, copie o **QSTASH_TOKEN**
+   - Cole no wizard
+
+   **Etapa 5 - Redis:**
+   - No [console.upstash.com/redis](https://console.upstash.com/redis), clique em **Create Database**
+   - Nome: **smartzap** • Região: **São Paulo** (ou mais próxima)
+   - Após criar, vá na aba **REST API**
+   - Copie **UPSTASH_REDIS_REST_URL** e **UPSTASH_REDIS_REST_TOKEN**
+   - Cole ambos no wizard
+
+3. **Confirme e execute**
+
+   Após preencher tudo, o wizard vai:
+   - Criar projeto Supabase automaticamente
+   - Configurar variáveis de ambiente na Vercel
+   - Aplicar migrations no banco
+   - Criar usuário administrador
+   - Fazer redeploy automático
+
+   **Tempo**: 3-5 minutos
+
+4. **Pronto!**
+
+   Você será redirecionado para fazer login com email e senha.
+
+> **Pronto quando**: Você conseguir fazer login!
+
+---
+
+## Primeiros Passos
+
+### 1. Fazer login
+
+Acesse o sistema e faça login com o **email** e **senha** que você configurou no wizard.
+
+### 2. Configurar WhatsApp
+
+1. Vá em **Configurações**
+2. Na seção **WhatsApp**, preencha:
+   - Phone Number ID
+   - Business Account ID
+   - Access Token
+3. Configure o **Webhook** no Meta Business Suite:
+   - URL: `https://seu-dominio.com/api/webhook`
+   - Verify Token: o mesmo que você configurou
+
+### 3. Sincronizar templates
+
+1. Vá em **Templates**
+2. Clique em **Sincronizar**
+3. Seus templates aprovados aparecerão na lista
+
+### 4. Importar contatos
+
+1. Vá em **Contatos**
+2. Clique em **Importar CSV**
+3. Mapeie as colunas (nome, telefone, etc.)
+4. Importe!
+
+### 5. Criar sua primeira campanha
+
+1. Vá em **Campanhas** → **Nova Campanha**
+2. Escolha um template
+3. Selecione os contatos
+4. Rode o **Precheck** para validar
+5. Dispare!
+
+### 6. Testar o Inbox
+
+1. Vá em **Inbox**
+2. Peça para alguém enviar uma mensagem para seu número
+3. A mensagem aparecerá em tempo real!
+
+---
+
+## Como Usar
+
+### Navegação Principal
+
+O SmartZap tem estas áreas principais:
+
+- **Campanhas**: Criar e gerenciar disparos em massa
+- **Contatos**: Lista de contatos e importação
+- **Templates**: Templates do WhatsApp
+- **Inbox**: Chat em tempo real com clientes
+- **Configurações**: WhatsApp, IA, Integrações
+
+### Disparando uma Campanha
+
+1. Vá em **Campanhas** → **Nova Campanha**
+2. Dê um nome para a campanha
+3. Escolha o template que quer usar
+4. Selecione os contatos (pode filtrar por tags)
+5. Clique em **Precheck** para validar
+6. Se tudo estiver OK, clique em **Disparar**
+7. Acompanhe as métricas em tempo real
+
+### Usando o Inbox
+
+O Inbox mostra todas as conversas com clientes:
+
+1. Clique em uma conversa para ver o histórico
+2. Digite sua mensagem e envie
+3. Ou ative o **AI Agent** para responder automaticamente
+
+### Configurando AI Agents
+
+Para ter respostas automáticas:
+
+1. Vá em **Configurações → IA**
+2. Configure uma chave de API (Gemini, OpenAI ou Anthropic)
+3. Vá em **Agentes**
+4. Crie um agente com:
+   - Nome
+   - Instruções (prompt do sistema)
+   - Configurações de memória
+5. Ative o agente
+
+---
+
+## Configurações
+
+### WhatsApp
+
+Você precisa de uma conta no Meta Business Suite com acesso à Cloud API.
+
+**O que configurar:**
+- **Phone Number ID**: ID do número de telefone
+- **Business Account ID**: ID da conta business
+- **Access Token**: Token de acesso (permanente recomendado)
+- **Verify Token**: Token para verificação do webhook
+
+### Inteligência Artificial
+
+Para usar AI Agents, configure uma chave de API:
+
+| Provedor | Onde conseguir |
+|----------|----------------|
+| **Google Gemini** | [Google AI Studio](https://makersuite.google.com/app/apikey) |
+| **OpenAI** | [platform.openai.com](https://platform.openai.com/api-keys) |
+| **Anthropic** | [console.anthropic.com](https://console.anthropic.com/) |
+
+Depois:
+1. Vá em **Configurações → IA**
+2. Cole a chave de API
+3. Escolha o modelo
+4. Salve
+
+### Upstash (QStash + Redis)
+
+O SmartZap usa dois serviços do Upstash:
+
+**QStash** - Fila para processar campanhas em lote:
+- Vá em [upstash.com](https://upstash.com/) → QStash
+- Copie o `QSTASH_TOKEN`
+
+**Redis** - Cache e dados de sessão:
+- Vá em [upstash.com](https://upstash.com/) → Redis → Create Database
+- Copie `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`
+
+> Ambos são configurados automaticamente pelo wizard.
+
+---
+
+## Problemas Comuns
+
+### Não consigo fazer login
+
+**Possíveis causas:**
+- Senha incorreta
+- Wizard não foi completado
+
+**Solução:**
+- Verifique se completou a instalação via wizard
+- Confirme a senha que você configurou
+
+### Mensagens não estão sendo enviadas
+
+**Possíveis causas:**
+- Credenciais do WhatsApp incorretas
+- Token expirado
+- Template não aprovado
+
+**Solução:**
+1. Verifique as credenciais em **Configurações**
+2. Confirme que o template está aprovado no Meta
+3. Veja os logs da campanha para erros específicos
+
+### Webhook não recebe mensagens
+
+**Possíveis causas:**
+- URL do webhook incorreta
+- Verify token não confere
+- Webhook não configurado no Meta
+
+**Solução:**
+1. Verifique se a URL está correta: `https://seu-dominio.com/api/webhook`
+2. Confirme o verify token nas duas pontas
+3. Teste com: `curl "https://seu-dominio.com/api/webhook?hub.verify_token=SEU_TOKEN&hub.challenge=test&hub.mode=subscribe"`
+
+### AI Agent não responde
+
+**Possíveis causas:**
+- Chave de API não configurada
+- Agente não está ativo
+- Créditos da API esgotados
+
+**Solução:**
+1. Vá em **Configurações → IA**
+2. Verifique se a chave está preenchida
+3. Confirme que o agente está ativo
+4. Verifique os logs do agente
+
+### Campanha travou
+
+**Possíveis causas:**
+- Problema no QStash
+- Erro no template
+
+**Solução:**
+1. Veja o status em **Campanhas**
+2. Clique na campanha para ver detalhes
+3. Se necessário, pause e retome
+
+### Push notifications não funcionam
+
+**Possíveis causas:**
+- PWA não instalado
+- Permissões negadas
+
+**Solução:**
+1. Instale o app como PWA (adicionar à tela inicial)
+2. Aceite as permissões de notificação
+3. Em iOS, precisa adicionar à tela inicial primeiro
+
+---
+
+## Suporte
+
+### Documentação
+
+- **[Guia de Configuração](docs/GUIA_CONFIGURACAO.md)**: Setup completo para produção
+- **[Inbox e AI Agents](docs/inbox-ai-agents.md)**: Chat e agentes de IA
+- **[Integração Mem0](docs/MEM0_INTEGRATION.md)**: Memória de conversas
+- **[Changelog](docs/changelog.md)**: Histórico de alterações
+
+### Contato
+
+- **Problemas**: Abra uma issue no GitHub
+- **Dúvidas**: Entre em contato com o mantenedor
+
+---
+
+## Para Desenvolvedores
+
+> Esta seção é apenas para quem quer contribuir ou entender a arquitetura técnica.
+
+### Stack
+
+- **Frontend**: Next.js 16, React 19, Tailwind CSS v4, shadcn/ui
+- **Backend**: Next.js API Routes
+- **Banco**: Supabase (PostgreSQL + Realtime)
+- **Fila**: Upstash QStash
+- **IA**: Vercel AI SDK v6 + Mem0
+- **WhatsApp**: Meta Cloud API v24
+
+### Instalação Local
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/SEU-USUARIO/smartzap.git
+cd smartzap
+
+# 2. Instale dependências
+npm install
+
+# 3. Configure variáveis de ambiente
+cp .env.example .env.local
+# Preencha as variáveis
+
+# 4. Inicie o servidor
+npm run dev
+```
+
+### Scripts Disponíveis
+
+```bash
+npm run dev              # Desenvolvimento
+npm run build            # Build de produção
+npm run lint             # Verificar código
+npm run test             # Rodar testes
+npm run test:e2e         # Testes E2E
+```
+
+### Estrutura do Projeto
+
+```
+smartzap/
+├── app/                 # Rotas Next.js (App Router)
+│   ├── (auth)/          # Páginas de auth (login, install)
+│   ├── (dashboard)/     # Páginas do dashboard
+│   └── api/             # API Routes
+├── components/          # Componentes React
+├── hooks/               # Hooks customizados
+├── lib/                 # Bibliotecas e utilitários
+├── services/            # Camada de acesso à API
+└── supabase/            # Migrations do banco
+```
+
+Para mais detalhes técnicos, veja:
+- [CLAUDE.md](CLAUDE.md) - Guia para desenvolvedores/IA
+
+---
+
+**[⬆ Voltar ao topo](#smartzap)**
+
+Feito com ❤️ para comunicação mais inteligente

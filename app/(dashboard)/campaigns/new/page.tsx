@@ -586,14 +586,45 @@ export default function CampaignsNewRealPage() {
     if (audienceMode === 'teste') {
       const baseList: Contact[] = []
       if (sendToConfigured) {
-        // Usa o contato real se existir, senão cria um "virtual" com dados das settings
-        const testContact = configuredContact || (testContactQuery.data?.phone ? {
-          id: 'test_contact_virtual',
-          phone: testContactQuery.data.phone,
-          name: testContactQuery.data.name || 'Contato de Teste',
-          status: 'Opt-in',
-          custom_fields: {},
-        } as Contact : null)
+        // Usa o contato real se existir
+        let testContact = configuredContact
+
+        // Se não existe no banco mas tem dados nas settings, cria o contato
+        if (!testContact && testContactQuery.data?.phone) {
+          try {
+            const res = await fetch('/api/contacts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phone: testContactQuery.data.phone,
+                name: testContactQuery.data.name || 'Contato de Teste',
+                status: 'Opt-in',
+              }),
+            })
+            if (res.ok) {
+              const created = await res.json() as Contact
+              testContact = created
+              setConfiguredContact(created)
+            } else {
+              throw new Error('Falha ao criar contato')
+            }
+          } catch (err) {
+            console.error('Erro ao criar contato de teste:', err)
+            // Fallback: tenta buscar caso já exista (race condition)
+            try {
+              const existing = await fetchJson<{ data: Contact[] }>(
+                `/api/contacts?limit=1&search=${encodeURIComponent(testContactQuery.data.phone)}`
+              )
+              if (existing?.data?.[0]) {
+                testContact = existing.data[0]
+                setConfiguredContact(testContact)
+              }
+            } catch {
+              // Se ainda falhar, não adiciona o contato
+            }
+          }
+        }
+
         if (testContact) baseList.push(testContact)
       }
       if (sendToSelected && selectedTestContact) baseList.push(selectedTestContact)
@@ -2025,7 +2056,7 @@ export default function CampaignsNewRealPage() {
                     </div>
                     <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
                       {[
-                        { label: 'Todos', value: 'todos', helper: '221 contatos elegíveis' },
+                        { label: 'Todos', value: 'todos', helper: `${statsQuery.data?.optIn ?? 0} contatos elegíveis` },
                         { label: 'Segmentos', value: 'segmentos', helper: 'Filtrar por tags, DDI ou UF' },
                         { label: 'Teste', value: 'teste', helper: 'Enviar para contato de teste' },
                       ].map((item) => (
@@ -2056,11 +2087,11 @@ export default function CampaignsNewRealPage() {
                   </div>
                   <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="rounded-xl border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] p-4 text-center">
-                      <p className="text-2xl font-semibold text-[var(--ds-text-primary)]">221</p>
+                      <p className="text-2xl font-semibold text-[var(--ds-text-primary)]">{statsQuery.data?.optIn ?? 0}</p>
                       <p className="text-xs text-[var(--ds-text-muted)]">Elegíveis</p>
                     </div>
                     <div className="rounded-xl border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] p-4 text-center">
-                      <p className="text-2xl font-semibold text-amber-700 dark:text-amber-200">6</p>
+                      <p className="text-2xl font-semibold text-amber-700 dark:text-amber-200">{statsQuery.data?.optOut ?? 0}</p>
                       <p className="text-xs text-[var(--ds-text-muted)]">Suprimidos</p>
                     </div>
                     <div className="rounded-xl border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] p-4 text-center">

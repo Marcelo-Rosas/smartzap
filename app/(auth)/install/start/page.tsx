@@ -300,6 +300,7 @@ export default function InstallStartPage() {
 
   const handleRedisComplete = useCallback(
     (data: { restUrl: string; restToken: string }) => {
+
       localStorage.setItem(STORAGE_KEYS.REDIS_REST_URL, data.restUrl);
       localStorage.setItem(STORAGE_KEYS.REDIS_REST_TOKEN, data.restToken);
 

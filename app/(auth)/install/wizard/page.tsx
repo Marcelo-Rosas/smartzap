@@ -97,6 +97,7 @@ export default function InstallWizardPage() {
 
   // Hydration: check if all data is present
   useEffect(() => {
+
     const vercelToken = localStorage.getItem(STORAGE_KEYS.VERCEL_TOKEN);
     const vercelProject = localStorage.getItem(STORAGE_KEYS.VERCEL_PROJECT);
     const supabasePat = localStorage.getItem(STORAGE_KEYS.SUPABASE_PAT);
@@ -109,6 +110,23 @@ export default function InstallWizardPage() {
     const name = localStorage.getItem(STORAGE_KEYS.USER_NAME);
     const email = localStorage.getItem(STORAGE_KEYS.USER_EMAIL);
     const passwordHash = localStorage.getItem(STORAGE_KEYS.USER_PASS_HASH);
+
+    // Debug: mostrar quais dados estão faltando
+    const missingData = {
+      vercelToken: !vercelToken,
+      vercelProject: !vercelProject,
+      supabasePat: !supabasePat,
+      supabaseDbPass: !supabaseDbPass,
+      qstashToken: !qstashToken,
+      redisUrl: !redisUrl,
+      redisToken: !redisToken,
+      name: !name,
+      email: !email,
+      passwordHash: !passwordHash,
+    };
+    const hasMissing = Object.values(missingData).some(v => v);
+    if (hasMissing) {
+    }
 
     // Missing data → go back to start
     // Note: supabaseDbPass is critical - we need it to connect as postgres user
@@ -127,6 +145,7 @@ export default function InstallWizardPage() {
       router.replace('/install/start');
       return;
     }
+
 
     // Supabase URL: se não tiver, gerar baseado no ref
     let resolvedSupabaseUrl = supabaseUrl || '';
@@ -209,7 +228,7 @@ export default function InstallWizardPage() {
 
     setPhase('provisioning');
     setError(null);
-    setProvisioningTitle('Wake up, Neo...');
+    setProvisioningTitle(`Wake up, ${firstName}...`);
     setProvisioningSubtitle('A Matrix tem você...');
     setProvisioningProgress(0);
 
@@ -254,7 +273,6 @@ export default function InstallWizardPage() {
               skipBootstrap: healthData.skipBootstrap,
               estimatedSeconds: healthData.estimatedSeconds,
             };
-            console.log('[wizard] Health check result:', healthCheck);
 
             // Mensagem personalizada baseada no que foi detectado
             const skippedCount = [
@@ -273,7 +291,6 @@ export default function InstallWizardPage() {
         }
       } catch (healthErr) {
         // Health check é opcional - continua sem ele
-        console.log('[wizard] Health check falhou (continuando sem otimização):', healthErr);
       }
 
       const payload = {
@@ -317,7 +334,6 @@ export default function InstallWizardPage() {
       await handleStream(response);
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
-        console.log('[wizard] Instalação cancelada');
         return;
       }
       setError(err instanceof Error ? err.message : 'Erro desconhecido');

@@ -408,6 +408,15 @@ const OnboardingOverlay = ({
 import { PrefetchLink } from '@/components/ui/PrefetchLink'
 import { AccountAlertBanner } from '@/components/ui/AccountAlertBanner'
 import { DashboardSidebar, type NavItem } from '@/components/layout/DashboardSidebar'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { DevModeToggle } from '@/components/ui/dev-mode-toggle'
+import { useDevMode } from '@/components/providers/DevModeProvider'
+import {
+    OnboardingModal,
+    OnboardingChecklist,
+    ChecklistMiniBadge,
+    useOnboardingProgress,
+} from '@/components/features/onboarding'
 
 export function DashboardShell({
     children,
@@ -446,6 +455,32 @@ export function DashboardShell({
     // T069: Unread count for inbox badge in sidebar
     const { count: unreadCount } = useUnreadCount()
 
+    // Dev mode for hiding dev-only nav items
+    const { isDevMode } = useDevMode()
+
+    // WhatsApp onboarding progress hook (localStorage)
+    const {
+        progress: onboardingProgress,
+        shouldShowOnboardingModal,
+        shouldShowChecklist,
+        completeOnboarding,
+    } = useOnboardingProgress()
+
+    // Onboarding status from database (fonte da verdade)
+    const { data: onboardingDbStatus, refetch: refetchOnboardingStatus } = useQuery({
+        queryKey: ['onboardingStatus'],
+        queryFn: async () => {
+            const response = await fetch('/api/settings/onboarding')
+            if (!response.ok) throw new Error('Failed to fetch onboarding status')
+            return response.json() as Promise<{ onboardingCompleted: boolean; permanentTokenConfirmed: boolean }>
+        },
+        staleTime: 5 * 60 * 1000,
+        gcTime: 10 * 60 * 1000,
+    })
+
+    // Onboarding está completo se marcado no banco OU no localStorage
+    const isOnboardingCompletedInDb = onboardingDbStatus?.onboardingCompleted ?? false
+
     const { data: authStatus } = useQuery({
         queryKey: ['authStatus'],
         queryFn: async () => {
@@ -477,7 +512,6 @@ export function DashboardShell({
 
     // Prefetch data on hover for faster page loads
     const prefetchRoute = useCallback((path: string) => {
-        // console.log('Prefetching route:', path) // Debug
         switch (path) {
             case '/':
                 queryClient.prefetchQuery({
@@ -555,19 +589,71 @@ export function DashboardShell({
         (healthStatus.services.database?.status !== 'ok' ||
             healthStatus.services.qstash.status !== 'ok')
 
+    // Determina se WhatsApp está conectado
+    const isWhatsAppConnected = healthStatus?.services.whatsapp?.status === 'ok'
+
+    // Determina se webhook está configurado
+    const isWebhookConfigured = healthStatus?.services.webhook?.status === 'ok'
+
+    // Determina se precisa configurar webhook (WhatsApp conectado mas webhook não)
+    const needsWebhookSetup = isWhatsAppConnected && !isWebhookConfigured && healthStatus !== undefined
+
+    // Handler para salvar credenciais (NÃO marca como completo - o usuário ainda precisa configurar webhook)
+    const handleSaveCredentials = useCallback(async (credentials: {
+        phoneNumberId: string
+        businessAccountId: string
+        accessToken: string
+    }) => {
+        // Salva as credenciais no servidor
+        await settingsService.save({
+            phoneNumberId: credentials.phoneNumberId,
+            businessAccountId: credentials.businessAccountId,
+            accessToken: credentials.accessToken,
+            isConnected: false, // será atualizado pelo save
+            displayPhoneNumber: '',
+            verifiedName: '',
+            testContact: undefined,
+        })
+
+        // Revalida o health status
+        refetchHealth()
+        queryClient.invalidateQueries({ queryKey: ['settings'] })
+    }, [refetchHealth, queryClient])
+
+    // Handler para marcar onboarding como completo (chamado quando o usuário finaliza TODO o fluxo)
+    const handleMarkOnboardingComplete = useCallback(async () => {
+        // Marca o onboarding como completo no localStorage (para compatibilidade)
+        completeOnboarding()
+
+        // Marca o onboarding como completo no banco de dados (fonte da verdade)
+        try {
+            await fetch('/api/settings/onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ onboardingCompleted: true }),
+            })
+            refetchOnboardingStatus()
+        } catch (error) {
+            console.error('Erro ao salvar status do onboarding no banco:', error)
+        }
+    }, [completeOnboarding, refetchOnboardingStatus])
+
+    // Sidebar callback - DEVE estar antes de qualquer early return
+    const handleCloseMobileMenu = useCallback(() => setIsMobileMenuOpen(false), [])
+
     // Memoize navItems to prevent recreation on every render
     // T069: Include dynamic unread badge for inbox
     const navItems = useMemo(() => [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/campaigns', label: 'Campanhas', icon: MessageSquare },
         { path: '/inbox', label: 'Inbox', icon: MessageCircle, badge: unreadCount > 0 ? String(unreadCount > 99 ? '99+' : unreadCount) : undefined },
-        { path: '/workflows', label: 'Workflow', icon: Workflow, badge: 'beta', disabled: true },
+        { path: '/workflows', label: 'Workflow', icon: Workflow, badge: 'beta', disabled: true, hidden: !isDevMode },
         { path: '/conversations', label: 'Conversas', icon: MessageCircle, hidden: true },
         { path: '/templates', label: 'Templates', icon: FileText },
         { path: '/contacts', label: 'Contatos', icon: Users },
         { path: '/settings/ai', label: 'IA', icon: Sparkles },
         { path: '/settings', label: 'Configurações', icon: Settings },
-    ].filter(item => !item.hidden), [unreadCount])
+    ].filter(item => !item.hidden), [unreadCount, isDevMode])
 
     const getPageTitle = (path: string) => {
         if (path === '/') return 'Dashboard'
@@ -603,11 +689,17 @@ export function DashboardShell({
         )
     }
 
+    // Determina se deve mostrar o modal de onboarding do WhatsApp
+    // Mostra quando: infra OK E onboarding não marcado como completo no banco
+    const showWhatsAppOnboarding = !needsSetup && !isOnboardingCompletedInDb
+
+    // Se WhatsApp já conectado mas onboarding não completo, força ir para step de webhook
+    const onboardingForceStep = isWhatsAppConnected && !isOnboardingCompletedInDb
+        ? 'configure-webhook' as const
+        : undefined
+
     const isBuilderRoute = pathname?.startsWith('/builder') ?? false
     const isInboxRoute = pathname?.startsWith('/inbox') ?? false
-
-    // Sidebar props - memoized callbacks
-    const handleCloseMobileMenu = useCallback(() => setIsMobileMenuOpen(false), [])
 
     // Sidebar component props
     const sidebarProps = {
@@ -648,7 +740,7 @@ export function DashboardShell({
     if (isInboxRoute) {
         return (
             <PageLayoutProvider>
-                <div className="min-h-screen text-[var(--ds-text-primary)] flex font-sans selection:bg-primary-500/30">
+                <div className="min-h-screen bg-[var(--ds-bg-base)] text-[var(--ds-text-primary)] flex font-sans selection:bg-primary-500/30">
                     {/* Mobile Overlay */}
                     {isMobileMenuOpen && (
                         <div
@@ -674,18 +766,24 @@ export function DashboardShell({
                         isSidebarExpanded && "lg:pl-56"
                     )}>
                         {/* Compact mobile header - only menu button */}
-                        <header className="lg:hidden h-12 flex items-center px-4 border-b border-zinc-800/50 bg-zinc-950 shrink-0">
-                            <button
-                                className="p-2 text-[var(--ds-text-secondary)] -ml-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md"
-                                onClick={() => {
-                                    updateSidebarExpanded(true)
-                                    setIsMobileMenuOpen(true)
-                                }}
-                                aria-label="Abrir menu de navegação"
-                            >
-                                <Menu size={20} aria-hidden="true" />
-                            </button>
-                            <span className="ml-2 text-sm font-medium text-zinc-300">Inbox</span>
+                        <header className="lg:hidden h-12 flex items-center justify-between px-4 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-elevated)] shrink-0">
+                            <div className="flex items-center">
+                                <button
+                                    className="p-2 text-[var(--ds-text-secondary)] -ml-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md"
+                                    onClick={() => {
+                                        updateSidebarExpanded(true)
+                                        setIsMobileMenuOpen(true)
+                                    }}
+                                    aria-label="Abrir menu de navegação"
+                                >
+                                    <Menu size={20} aria-hidden="true" />
+                                </button>
+                                <span className="ml-2 text-sm font-medium text-[var(--ds-text-secondary)]">Inbox</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <ThemeToggle compact />
+                                <DevModeToggle />
+                            </div>
                         </header>
                         <PageContentShell>
                             {children}
@@ -698,7 +796,7 @@ export function DashboardShell({
 
     return (
         <PageLayoutProvider>
-            <div className="min-h-screen text-[var(--ds-text-primary)] flex font-sans selection:bg-primary-500/30">
+            <div className="min-h-screen bg-[var(--ds-bg-base)] text-[var(--ds-text-primary)] flex font-sans selection:bg-primary-500/30">
             {/* Mobile Overlay */}
             {isMobileMenuOpen && (
                 <div
@@ -744,7 +842,10 @@ export function DashboardShell({
                         </nav>
                     </div>
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3">
+                        <ChecklistMiniBadge isOnboardingCompletedInDb={isOnboardingCompletedInDb} />
+                        <ThemeToggle compact />
+                        <DevModeToggle />
                         <button className="relative group focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md p-1" aria-label="Notificações (1 nova)">
                             <Bell size={20} className="text-[var(--ds-text-muted)] group-hover:text-[var(--ds-text-primary)] transition-colors cursor-pointer" aria-hidden="true" />
                             <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary-500 rounded-full border-2 border-[var(--ds-bg-base)]" aria-label="1 notificação não lida"></span>
@@ -752,8 +853,28 @@ export function DashboardShell({
                     </div>
                 </header>
 
+                {/* WhatsApp Onboarding Modal */}
+                {showWhatsAppOnboarding && (
+                    <OnboardingModal
+                        isConnected={!!isWhatsAppConnected}
+                        onSaveCredentials={handleSaveCredentials}
+                        onMarkComplete={handleMarkOnboardingComplete}
+                        forceStep={onboardingForceStep}
+                    />
+                )}
+
                 {/* Page Content */}
                 <PageContentShell>
+                    {/* Onboarding Checklist - aparece apenas na home do dashboard */}
+                    {/* Mostra se: onboarding completo (banco OU localStorage) E não dismissado E não minimizado */}
+                    {pathname === '/' && (isOnboardingCompletedInDb || shouldShowChecklist) && !onboardingProgress.isChecklistMinimized && !onboardingProgress.isChecklistDismissed && healthStatus && (
+                        <div className="mb-6">
+                            <OnboardingChecklist
+                                healthStatus={healthStatus}
+                                onNavigate={(path) => router.push(path)}
+                            />
+                        </div>
+                    )}
                     {children}
                 </PageContentShell>
             </div>

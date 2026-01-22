@@ -11,13 +11,14 @@ import {
 export const config = {
     matcher: [
         // Match all pages except static files and _next
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        // Includes: .json (manifest.json), .js (sw.js), common images, and Next.js internals
+        '/((?!_next/static|_next/image|favicon.ico|manifest\\.json|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
     ],
 }
 
 // Routes that don't require user authentication
-const PUBLIC_PAGES = ['/login', '/install', '/debug-auth', '/f']
-const PUBLIC_API_ROUTES = ['/api/auth', '/api/webhook', '/api/health', '/api/system', '/api/installer', '/api/debug', '/api/database', '/api/campaign/workflow', '/api/account/alerts', '/api/public/lead-forms', '/api/builder']
+const PUBLIC_PAGES = ['/login', '/install', '/debug-auth', '/f', '/atendimento']
+const PUBLIC_API_ROUTES = ['/api/auth', '/api/webhook', '/api/health', '/api/system', '/api/installer', '/api/debug', '/api/database', '/api/campaign/workflow', '/api/account/alerts', '/api/public/lead-forms', '/api/builder', '/api/attendants', '/api/attendant', '/api/push', '/api/inbox']
 
 export async function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname

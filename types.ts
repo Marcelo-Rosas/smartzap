@@ -516,6 +516,9 @@ export interface TemplateProjectItem {
   buttons?: any;
   category?: string;
   language: string;
+  // Variáveis para estratégia BYPASS
+  sample_variables?: Record<string, string>;  // Valores comportados para enviar à Meta
+  marketing_variables?: Record<string, string>;  // Valores promocionais para envio real
   created_at: string;
   updated_at: string;
 }
@@ -607,6 +610,11 @@ export interface AIAgent {
   // RAG: Search config
   rag_similarity_threshold: number | null;
   rag_max_results: number | null;
+  // Handoff config
+  handoff_enabled: boolean;
+  handoff_instructions: string | null;
+  // Booking tool config
+  booking_tool_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -733,7 +741,7 @@ export interface CreateInboxQuickReplyDTO {
   shortcut?: string;
 }
 
-// AI Response Schema (from support-agent)
+// AI Response Schema (from chat-agent)
 export interface AIAgentResponse {
   text: string;
   sentiment: Sentiment;
@@ -796,4 +804,40 @@ export interface UpdateCampaignFolderDTO {
 export interface CreateCampaignTagDTO {
   name: string;
   color?: string;
+}
+
+// =============================================================================
+// ATTENDANT TOKENS (Web Monitor Access)
+// =============================================================================
+
+export interface AttendantPermissions {
+  canView: boolean;      // Pode ver conversas
+  canReply: boolean;     // Pode responder mensagens
+  canHandoff: boolean;   // Pode fazer handoff/transferir
+}
+
+export interface AttendantToken {
+  id: string;
+  name: string;                      // Nome do atendente
+  token: string;                     // Token para URL
+  permissions: AttendantPermissions;
+  is_active: boolean;
+  last_used_at: string | null;
+  access_count: number;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAttendantTokenDTO {
+  name: string;
+  permissions?: Partial<AttendantPermissions>;
+  expires_at?: string | null;
+}
+
+export interface UpdateAttendantTokenDTO {
+  name?: string;
+  permissions?: Partial<AttendantPermissions>;
+  is_active?: boolean;
+  expires_at?: string | null;
 }

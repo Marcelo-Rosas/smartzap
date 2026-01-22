@@ -18,6 +18,7 @@ export const GenerateUtilityTemplatesSchema = z.object({
     .max(2000, 'Descrição muito longa'),
   quantity: z.number().int().min(1).max(20).default(5),
   language: z.enum(['pt_BR', 'en_US', 'es_ES']).default('pt_BR'),
+  strategy: z.enum(['marketing', 'utility', 'bypass']).default('bypass'),
 })
 
 const languageMap: Record<string, string> = {
@@ -39,6 +40,13 @@ interface GeneratedTemplate {
   buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>
   language: string
   status: string
+  category: 'MARKETING' | 'UTILITY' // Definido pela strategy selecionada
+  // Variáveis genéricas (usado em MARKETING/UTILITY)
+  variables?: Record<string, string>
+  // Variáveis comportadas para enviar à Meta na criação (usado em BYPASS)
+  sample_variables?: Record<string, string>
+  // Variáveis agressivas de marketing para envio real (usado em BYPASS)
+  marketing_variables?: Record<string, string>
   // AI Judge fields
   judgment?: {
     approved: boolean
@@ -98,8 +106,13 @@ function normalizeTemplate(
   rawTemplate: Record<string, unknown>,
   index: number,
   language: string,
-  primaryUrl: string | null
+  primaryUrl: string | null,
+  strategy: 'marketing' | 'utility' | 'bypass'
 ): GeneratedTemplate {
+  // Mapear strategy para categoria Meta
+  // marketing -> MARKETING
+  // utility/bypass -> UTILITY (bypass usa UTILITY para passar pelo filtro)
+  const category: 'MARKETING' | 'UTILITY' = strategy === 'marketing' ? 'MARKETING' : 'UTILITY'
   // Name: snake_case, apenas letras minúsculas, números e underscore
   let name = String(rawTemplate.name || `template_${index + 1}`)
   name = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 512)
@@ -160,6 +173,51 @@ function normalizeTemplate(
     }
   }
 
+  // Variables: valores de exemplo para preview (usado em MARKETING/UTILITY)
+  let variables: GeneratedTemplate['variables'] = undefined
+  if (rawTemplate.variables && typeof rawTemplate.variables === 'object') {
+    const vars = rawTemplate.variables as Record<string, unknown>
+    variables = {}
+    for (const [key, value] of Object.entries(vars)) {
+      if (typeof value === 'string') {
+        variables[key] = value
+      }
+    }
+    if (Object.keys(variables).length === 0) {
+      variables = undefined
+    }
+  }
+
+  // Sample Variables: valores comportados para enviar à Meta (usado em BYPASS)
+  let sample_variables: GeneratedTemplate['sample_variables'] = undefined
+  if (rawTemplate.sample_variables && typeof rawTemplate.sample_variables === 'object') {
+    const vars = rawTemplate.sample_variables as Record<string, unknown>
+    sample_variables = {}
+    for (const [key, value] of Object.entries(vars)) {
+      if (typeof value === 'string') {
+        sample_variables[key] = value
+      }
+    }
+    if (Object.keys(sample_variables).length === 0) {
+      sample_variables = undefined
+    }
+  }
+
+  // Marketing Variables: valores agressivos para envio real (usado em BYPASS)
+  let marketing_variables: GeneratedTemplate['marketing_variables'] = undefined
+  if (rawTemplate.marketing_variables && typeof rawTemplate.marketing_variables === 'object') {
+    const vars = rawTemplate.marketing_variables as Record<string, unknown>
+    marketing_variables = {}
+    for (const [key, value] of Object.entries(vars)) {
+      if (typeof value === 'string') {
+        marketing_variables[key] = value
+      }
+    }
+    if (Object.keys(marketing_variables).length === 0) {
+      marketing_variables = undefined
+    }
+  }
+
   return {
     id: `generated_${Date.now()}_${index}`,
     name,
@@ -168,7 +226,11 @@ function normalizeTemplate(
     footer,
     buttons,
     language,
-    status: 'DRAFT'
+    status: 'DRAFT',
+    category,
+    variables,
+    sample_variables,
+    marketing_variables
   }
 }
 
@@ -181,7 +243,8 @@ async function generateWithUnifiedPrompt(
   quantity: number,
   language: string,
   primaryUrl: string | null,
-  promptTemplate: string
+  promptTemplate: string,
+  strategy: 'marketing' | 'utility' | 'bypass'
 ): Promise<GeneratedTemplate[]> {
   const utilityPrompt = buildUtilityGenerationPrompt({
     prompt: userPrompt,
@@ -197,7 +260,7 @@ async function generateWithUnifiedPrompt(
 
   if (!Array.isArray(rawTemplates)) throw new Error('Response is not an array')
 
-  return rawTemplates.map((t, index) => normalizeTemplate(t, index, language, primaryUrl))
+  return rawTemplates.map((t, index) => normalizeTemplate(t, index, language, primaryUrl, strategy))
 }
 
 // ============================================================================
@@ -225,7 +288,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { prompt: userPrompt, quantity, language } = validation.data
+    const { prompt: userPrompt, quantity, language, strategy } = validation.data
 
     // Get API key from settings for both Agent and Judge
     let apiKey: string | null = null
@@ -250,23 +313,36 @@ export async function POST(request: NextRequest) {
     const promptsConfig = await getAiPromptsConfig()
     let templates: GeneratedTemplate[]
 
-    console.log('[GENERATE] Using unified prompt-based generation...')
+    // Seleciona o prompt correto baseado na estratégia
+    const strategyPromptMap: Record<typeof strategy, string> = {
+      marketing: promptsConfig.strategyMarketing,
+      utility: promptsConfig.strategyUtility,
+      bypass: promptsConfig.strategyBypass,
+    }
+    const selectedPrompt = strategyPromptMap[strategy] || promptsConfig.utilityGenerationTemplate
+
+    console.log(`[GENERATE] Using strategy "${strategy}" prompt (${selectedPrompt.length} chars)`)
     templates = await generateWithUnifiedPrompt(
       userPrompt,
       quantity,
       language,
       primaryUrl,
-      promptsConfig.utilityGenerationTemplate
+      selectedPrompt,
+      strategy
     )
 
     // ========================================================================
     // AI JUDGE - Validar cada template
+    // Pula para MARKETING (não precisa parecer neutro)
     // ========================================================================
     let validatedTemplates = templates
 
+    // Templates MARKETING não precisam do AI Judge - eles DEVEM ter linguagem promocional
+    const shouldRunJudge = strategy !== 'marketing'
+
     try {
-      if (apiKey) {
-        console.log('[AI_JUDGE] Validating templates...')
+      if (apiKey && shouldRunJudge) {
+        console.log(`[AI_JUDGE] Validating templates... (strategy: ${strategy})`)
 
         const judgments = await judgeTemplates(
           templates.map(t => ({
@@ -363,6 +439,8 @@ export async function POST(request: NextRequest) {
         const fixed = validatedTemplates.filter(t => t.wasFixed && !t.judgment?.approved).length
         const filtered = templates.length - validatedTemplates.length
         console.log(`[AI_JUDGE] Final: ${validatedTemplates.length}/${templates.length} templates (${approved} approved, ${fixed} fixed, ${filtered} filtered out)`)
+      } else if (!shouldRunJudge) {
+        console.log(`[AI_JUDGE] Skipped - strategy "${strategy}" doesn't need UTILITY validation`)
       } else {
         console.log('[AI_JUDGE] Skipped - no API key available')
       }

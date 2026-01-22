@@ -11,6 +11,7 @@
  */
 
 import React, { useState } from 'react'
+import { useAIAgentsGlobalToggle } from '@/hooks/useAIAgents'
 import {
   Bot,
   User,
@@ -25,6 +26,7 @@ import {
   Clock,
   Trash2,
   Settings2,
+  Brain,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -63,6 +65,8 @@ import type {
   ConversationMode,
   ConversationPriority,
 } from '@/types'
+import { ContactMemoriesSheet } from './ContactMemoriesSheet'
+import { formatPhoneNumberDisplay } from '@/lib/phone-formatter'
 
 export interface ConversationHeaderProps {
   conversation: InboxConversation
@@ -137,6 +141,12 @@ export function ConversationHeader({
   // Delete confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
+  // Memories sheet state
+  const [showMemoriesSheet, setShowMemoriesSheet] = useState(false)
+
+  // Check if AI agents are globally enabled
+  const { enabled: aiGlobalEnabled } = useAIAgentsGlobalToggle()
+
   const displayName = contact?.name || phone
   const agentName = ai_agent?.name
   const initials = displayName
@@ -172,18 +182,18 @@ export function ConversationHeader({
     conversationLabels?.some((l) => l.id === labelId) ?? false
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/50 bg-zinc-950">
+    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--ds-border-subtle)] bg-[var(--ds-bg-elevated)]">
       {/* Contact info - compact */}
       <div className="flex items-center gap-2.5">
         {/* Simple avatar */}
-        <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-          <span className="text-[11px] font-medium text-zinc-400">{initials}</span>
+        <div className="h-8 w-8 rounded-full bg-[var(--ds-bg-surface)] flex items-center justify-center shrink-0">
+          <span className="text-[11px] font-medium text-[var(--ds-text-secondary)]">{initials}</span>
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-[13px] font-medium text-zinc-200 truncate">{displayName}</h3>
+            <h3 className="text-[13px] font-medium text-[var(--ds-text-primary)] truncate">{displayName}</h3>
             {!isOpen && (
-              <span className="text-[9px] text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+              <span className="text-[9px] text-[var(--ds-text-muted)] bg-[var(--ds-bg-surface)] px-1.5 py-0.5 rounded">
                 fechada
               </span>
             )}
@@ -215,12 +225,27 @@ export function ConversationHeader({
               </Tooltip>
             )}
           </div>
-          <span className="text-[10px] text-zinc-500">{phone}</span>
+          <span className="text-[10px] text-[var(--ds-text-muted)]">{formatPhoneNumberDisplay(phone, 'e164')}</span>
         </div>
       </div>
 
       {/* Actions - compact */}
       <div className="flex items-center gap-1">
+        {/* Memories quick access */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setShowMemoriesSheet(true)}
+              className="h-7 w-7 flex items-center justify-center text-violet-400 hover:text-violet-300 rounded-lg hover:bg-violet-500/10 transition-colors"
+            >
+              <Brain className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            Ver memórias do contato
+          </TooltipContent>
+        </Tooltip>
+
         {/* Mode toggle - colored pill */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -231,14 +256,18 @@ export function ConversationHeader({
                 'h-6 px-2 rounded-full text-[10px] font-medium flex items-center gap-1 transition-all',
                 isUpdating || !isOpen ? 'opacity-50 cursor-not-allowed' : '',
                 isBotMode
-                  ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
+                  ? aiGlobalEnabled
+                    ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
+                    : 'bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25'
                   : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
               )}
             >
               {isBotMode ? (
                 <>
                   <Bot className="h-2.5 w-2.5" />
-                  <span className="max-w-[60px] truncate">{agentName || 'Bot'}</span>
+                  <span className="max-w-[60px] truncate">
+                    {aiGlobalEnabled ? (agentName || 'Bot') : 'IA off'}
+                  </span>
                 </>
               ) : (
                 <>
@@ -249,14 +278,20 @@ export function ConversationHeader({
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
-            {isBotMode ? 'Assumir controle' : 'Ativar bot'}
+            {isBotMode
+              ? aiGlobalEnabled
+                ? 'Assumir controle'
+                : 'IA desativada globalmente - Assumir controle'
+              : aiGlobalEnabled
+                ? 'Ativar bot'
+                : 'IA desativada globalmente'}
           </TooltipContent>
         </Tooltip>
 
         {/* More actions menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="h-7 w-7 flex items-center justify-center text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-zinc-800/50 transition-colors">
+            <button className="h-7 w-7 flex items-center justify-center text-[var(--ds-text-muted)] hover:text-[var(--ds-text-secondary)] rounded-lg hover:bg-[var(--ds-bg-hover)] transition-colors">
               <MoreVertical className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
@@ -443,6 +478,14 @@ export function ConversationHeader({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Contact memories sheet */}
+        <ContactMemoriesSheet
+          open={showMemoriesSheet}
+          onOpenChange={setShowMemoriesSheet}
+          phone={phone}
+          contactName={displayName}
+        />
       </div>
     </div>
   )

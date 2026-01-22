@@ -1,4 +1,4 @@
-import { getWhatsAppCredentials, getCredentialsSource } from '@/lib/whatsapp-credentials'
+import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
 // Types for health check response
@@ -19,6 +19,11 @@ export interface HealthStatus {
             status: 'ok' | 'error' | 'not_configured'
             source?: 'db' | 'env' | 'none'
             phoneNumber?: string
+            message?: string
+        }
+        webhook?: {
+            status: 'ok' | 'error' | 'not_configured'
+            lastEventAt?: string | null
             message?: string
         }
     }
@@ -129,7 +134,6 @@ export async function getHealthStatus(options: HealthCheckOptions = { checkExter
 
     // 3. Check WhatsApp credentials
     try {
-        const source = await getCredentialsSource()
         const credentials = await getWhatsAppCredentials()
 
         if (credentials) {
@@ -144,7 +148,7 @@ export async function getHealthStatus(options: HealthCheckOptions = { checkExter
                     const data = await response.json()
                     result.services.whatsapp = {
                         status: 'ok',
-                        source,
+                        source: 'db',
                         phoneNumber: data.display_phone_number,
                         message: `Connected: ${data.display_phone_number}`,
                     }
@@ -152,7 +156,7 @@ export async function getHealthStatus(options: HealthCheckOptions = { checkExter
                     const error = await response.json()
                     result.services.whatsapp = {
                         status: 'error',
-                        source,
+                        source: 'db',
                         message: error.error?.message || 'Token invalid or expired',
                     }
                     result.overall = 'degraded'
@@ -160,7 +164,7 @@ export async function getHealthStatus(options: HealthCheckOptions = { checkExter
             } else {
                 result.services.whatsapp = {
                     status: 'ok',
-                    source,
+                    source: 'db',
                     message: 'Credentials configured (checked locally)',
                 }
             }

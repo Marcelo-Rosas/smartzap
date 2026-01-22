@@ -29,8 +29,12 @@ export function SuccessCheckmark({
 }: SuccessCheckmarkProps) {
   useEffect(() => {
     if (onComplete) {
-      const timer = setTimeout(onComplete, delay);
-      return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        onComplete();
+      }, delay);
+      return () => {
+        clearTimeout(timer);
+      };
     }
   }, [onComplete, delay]);
 

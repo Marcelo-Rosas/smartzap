@@ -6,10 +6,16 @@
  */
 
 import { Suspense, use } from 'react'
+import dynamic from 'next/dynamic'
 import { InboxView } from '@/components/features/inbox'
-import { AIAgentForm } from '@/components/features/settings/ai-agents'
 import { useInbox } from '@/hooks/useInbox'
 import { Loader2 } from 'lucide-react'
+
+// Dynamic import para modal pesado (~885 linhas) - só carrega quando abre
+const AIAgentForm = dynamic(
+  () => import('@/components/features/settings/ai-agents').then(m => m.AIAgentForm),
+  { ssr: false }
+)
 
 interface InboxConversationPageProps {
   params: Promise<{ conversationId: string }>
@@ -85,10 +91,10 @@ function InboxConversationPageContent({ conversationId }: { conversationId: stri
 
 function LoadingFallback() {
   return (
-    <div className="h-[calc(100vh-64px)] flex items-center justify-center bg-zinc-950">
+    <div className="h-[calc(100vh-64px)] flex items-center justify-center bg-[var(--ds-bg-base)]">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
-        <p className="text-sm text-zinc-500">Carregando conversa...</p>
+        <p className="text-sm text-[var(--ds-text-muted)]">Carregando conversa...</p>
       </div>
     </div>
   )

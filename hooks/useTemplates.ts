@@ -18,6 +18,7 @@ import {
   removeFromSelection,
   type DraftSendState,
 } from '@/lib/business/template';
+import { CACHE } from '@/lib/constants';
 
 // Informações das categorias de utility para o UI
 export const UTILITY_CATEGORIES: Record<UtilityCategory, { name: string; icon: string }> = {
@@ -43,12 +44,6 @@ export const useTemplatesController = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'DRAFT' | 'APPROVED' | 'PENDING' | 'REJECTED' | 'ALL'>('APPROVED');
-
-  // AI Modal State (single template)
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiResult, setAiResult] = useState('');
-  const [newTemplateName, setNewTemplateName] = useState('');
 
   // Details Modal State
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -92,12 +87,12 @@ export const useTemplatesController = () => {
   const [universalPhone, setUniversalPhone] = useState<string>('');
 
   // --- Queries ---
-  // Templates raramente mudam - cache infinito, sincroniza só no botão
+  // Templates raramente mudam - cache de 10 min, mas pode sincronizar manualmente
   const templatesQuery = useQuery({
     queryKey: ['templates'],
     queryFn: templateService.getAll,
-    staleTime: Infinity,  // Nunca considera "velho" automaticamente
-    gcTime: Infinity,     // Nunca remove do cache
+    staleTime: CACHE.templates,  // 10 minutos - permite updates automáticos
+    gcTime: CACHE.templates * 2, // 20 minutos antes de remover do cache
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -150,24 +145,6 @@ export const useTemplatesController = () => {
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['templates'] });
       toast.success(`${count} novo(s) template(s) sincronizado(s) do Meta Business Manager!`);
-    }
-  });
-
-  const generateAiMutation = useMutation({
-    mutationFn: templateService.generateAiContent,
-    onSuccess: (result) => {
-      setAiResult(result);
-    }
-  });
-
-  const addTemplateMutation = useMutation({
-    mutationFn: templateService.add,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['templates'] });
-      setIsAiModalOpen(false);
-      setAiPrompt('');
-      setAiResult('');
-      setNewTemplateName('');
     }
   });
 
@@ -449,25 +426,6 @@ export const useTemplatesController = () => {
     return filterExcludingIds(filteredTemplates, manualDraftIds)
   }, [filteredTemplates, manualDraftIds])
 
-  const handleGenerateAI = () => {
-    if (!aiPrompt) return;
-    generateAiMutation.mutate(aiPrompt);
-  };
-
-  const handleSaveAiTemplate = () => {
-    if (!aiResult || !newTemplateName) {
-      toast.error('Por favor defina um nome e gere o conteúdo.');
-      return;
-    }
-
-    addTemplateMutation.mutate({
-      name: newTemplateName,
-      category: 'MARKETING', // Default for AI
-      language: 'pt_BR',
-      content: aiResult
-    });
-  };
-
   // Bulk Utility Handlers - SIMPLIFICADO
   const handleGenerateBulk = () => {
     if (!bulkBusinessType.trim() || bulkBusinessType.length < 10) {
@@ -725,19 +683,6 @@ export const useTemplatesController = () => {
     submittingManualDraftId,
     deleteManualDraft: (id: string) => deleteManualDraftMutation.mutate(id),
     deletingManualDraftId,
-
-    // AI Modal Props
-    isAiModalOpen,
-    setIsAiModalOpen,
-    aiPrompt,
-    setAiPrompt,
-    aiResult,
-    isAiGenerating: generateAiMutation.isPending,
-    onGenerateAi: handleGenerateAI,
-    newTemplateName,
-    setNewTemplateName,
-    onSaveAiTemplate: handleSaveAiTemplate,
-    isSaving: addTemplateMutation.isPending,
 
     // Bulk Utility Generator Props
     isBulkModalOpen,

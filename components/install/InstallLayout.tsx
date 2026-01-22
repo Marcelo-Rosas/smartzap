@@ -34,9 +34,10 @@ export function InstallLayout({
   return (
     <div
       className={cn(
+        // Força dark mode no wizard de instalação (steps usam cores hardcoded)
+        'dark',
         'min-h-screen flex flex-col items-center justify-center p-4',
-        'bg-[var(--ds-bg-base)]',
-        'dark:bg-gradient-to-br dark:from-zinc-950 dark:via-zinc-900 dark:to-emerald-950/20',
+        'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950/20',
         'relative overflow-hidden',
         className
       )}

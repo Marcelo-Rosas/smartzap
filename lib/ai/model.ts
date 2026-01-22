@@ -1,9 +1,8 @@
 /**
- * T042: AI Model Configuration
- * Gemini model configuration for support agent
+ * AI Model Configuration
+ * Model definitions and schemas for AI agents
  */
 
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { z } from 'zod'
 
 // =============================================================================
@@ -28,86 +27,17 @@ export const callOptionsSchema = z.object({
 export type CallOptions = z.infer<typeof callOptionsSchema>
 
 // =============================================================================
-// Model Factory
+// Default Model
 // =============================================================================
 
 /**
- * Get Gemini model instance
- * Uses environment variables for API key
- */
-export function getGeminiModel(modelId: string = 'gemini-2.5-flash') {
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY
-
-  if (!apiKey) {
-    throw new Error('Missing GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY environment variable')
-  }
-
-  const google = createGoogleGenerativeAI({
-    apiKey,
-  })
-
-  return google(modelId)
-}
-
-/**
- * Default model for support agent
- * gemini-3-flash-preview is the latest generation
+ * Default model for AI agents
  */
 export const DEFAULT_MODEL_ID = 'gemini-3-flash-preview'
 
-/**
- * Available models for AI agents
- * Organized by generation (newest first)
- *
- * Todos os modelos funcionam com RAG próprio (pgvector)
- */
-export const AI_AGENT_MODELS = [
-  // Gemini 3 - Latest generation
-  {
-    id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash',
-    description: 'Mais recente, rápido e inteligente (recomendado)',
-    generation: 3,
-  },
-  {
-    id: 'gemini-3-pro-preview',
-    name: 'Gemini 3 Pro',
-    description: 'Máxima qualidade, melhor raciocínio',
-    generation: 3,
-  },
-  // Gemini 2.5 - Current stable generation
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    description: 'Estável, rápido e eficiente',
-    generation: 2.5,
-  },
-  {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    description: 'Alta qualidade, raciocínio avançado',
-    generation: 2.5,
-  },
-  // Gemini 2.5 Lite - Ultra-fast, low cost
-  {
-    id: 'gemini-2.5-flash-lite',
-    name: 'Gemini 2.5 Flash Lite',
-    description: 'Ultra-rápido, baixo custo',
-    generation: 2.5,
-  },
-] as const
-
-/**
- * @deprecated Use AI_AGENT_MODELS instead
- */
-export const SUPPORT_AGENT_MODELS = AI_AGENT_MODELS
-
-/**
- * Get model info by ID
- */
-export function getModelInfo(modelId: string) {
-  return AI_AGENT_MODELS.find(m => m.id === modelId)
-}
+// Re-export from providers.ts - single source of truth for models
+export { AI_PROVIDERS, getProvider, getModel, getDefaultModel } from './providers'
+export type { AIProvider, AIModel, AIProviderConfig } from './providers'
 
 // =============================================================================
 // Response Schema

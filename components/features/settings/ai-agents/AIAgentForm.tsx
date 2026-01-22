@@ -16,7 +16,9 @@ import { Slider } from '@/components/ui/slider'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -35,24 +37,24 @@ import {
 } from '@/components/ui/collapsible'
 import type { AIAgent, EmbeddingProvider, RerankProvider } from '@/types'
 import type { CreateAIAgentParams, UpdateAIAgentParams } from '@/services/aiAgentService'
-import { AI_AGENT_MODELS, DEFAULT_MODEL_ID } from '@/lib/ai/model'
+import { DEFAULT_MODEL_ID, AI_PROVIDERS, type AIProvider } from '@/lib/ai/model'
 import { EMBEDDING_PROVIDERS, DEFAULT_EMBEDDING_CONFIG } from '@/lib/ai/embeddings'
 import { RERANK_PROVIDERS } from '@/lib/ai/reranking'
 
-// Default system prompt template
-const DEFAULT_SYSTEM_PROMPT = `Você é um assistente virtual da empresa [NOME_EMPRESA].
+// Default handoff instructions
+const DEFAULT_HANDOFF_INSTRUCTIONS = `Só transfira para humano quando o cliente PEDIR EXPLICITAMENTE para falar com uma pessoa, humano ou atendente.
 
-Sua função é:
-- Responder dúvidas dos clientes de forma educada e profissional
-- Ajudar com informações sobre produtos e serviços
-- Agendar atendimentos quando necessário
-- Transferir para um atendente humano quando o assunto exigir
+Se o cliente estiver frustrado ou insatisfeito:
+1. Primeiro peça desculpas e tente resolver
+2. Ofereça a OPÇÃO de falar com humano
+3. Só transfira se ele aceitar`
 
-Regras:
-- Sempre responda em português do Brasil
-- Seja cordial e empático
-- Se não souber a resposta, admita e ofereça alternativas
-- Nunca invente informações sobre preços ou disponibilidade`
+// Default system prompt template (minimalista - baseado em padrões do Google)
+const DEFAULT_SYSTEM_PROMPT = `Você é a [nome], assistente virtual da [empresa].
+
+Você ajuda clientes com dúvidas sobre produtos e pedidos.
+
+Seja amigável e objetivo. Se não souber algo, diga que vai verificar.`
 
 export interface AIAgentFormProps {
   open: boolean
@@ -80,6 +82,9 @@ export function AIAgentForm({
   const [debounceMs, setDebounceMs] = useState(5000)
   const [isActive, setIsActive] = useState(true)
   const [isDefault, setIsDefault] = useState(false)
+  const [handoffEnabled, setHandoffEnabled] = useState(true)
+  const [handoffInstructions, setHandoffInstructions] = useState('')
+  const [bookingToolEnabled, setBookingToolEnabled] = useState(false)
 
   // RAG: Embedding config
   const [embeddingProvider, setEmbeddingProvider] = useState<EmbeddingProvider>(DEFAULT_EMBEDDING_CONFIG.provider)
@@ -100,7 +105,7 @@ export function AIAgentForm({
   const [ragConfigOpen, setRagConfigOpen] = useState(false)
 
   // Available embedding providers (fetched from API)
-  interface ProviderAvailability {
+  interface EmbeddingProviderAvailability {
     id: EmbeddingProvider
     name: string
     available: boolean
@@ -112,31 +117,93 @@ export function AIAgentForm({
       pricePerMillion: number
     }>
   }
-  const [availableProviders, setAvailableProviders] = useState<ProviderAvailability[]>([])
-  const [providersLoading, setProvidersLoading] = useState(false)
+  const [availableEmbeddingProviders, setAvailableEmbeddingProviders] = useState<EmbeddingProviderAvailability[]>([])
+  const [embeddingProvidersLoading, setEmbeddingProvidersLoading] = useState(false)
+
+  // Available LLM providers (fetched from API)
+  interface LLMProviderAvailability {
+    id: AIProvider
+    name: string
+    icon: string
+    available: boolean
+    reason: string | null
+    models: Array<{
+      id: string
+      name: string
+      description?: string
+    }>
+  }
+  const [availableLLMProviders, setAvailableLLMProviders] = useState<LLMProviderAvailability[]>([])
+  const [llmProvidersLoading, setLLMProvidersLoading] = useState(false)
+
+  // Booking tool prerequisites
+  interface BookingPrerequisites {
+    ready: boolean
+    missing: string[]
+  }
+  const [bookingPrereqs, setBookingPrereqs] = useState<BookingPrerequisites>({ ready: false, missing: [] })
+  const [bookingPrereqsLoading, setBookingPrereqsLoading] = useState(false)
 
   // Fetch available embedding providers
-  const fetchAvailableProviders = useCallback(async () => {
-    setProvidersLoading(true)
+  const fetchAvailableEmbeddingProviders = useCallback(async () => {
+    setEmbeddingProvidersLoading(true)
     try {
       const res = await fetch('/api/ai-agents/embedding-providers')
       if (res.ok) {
         const data = await res.json()
-        setAvailableProviders(data.providers || [])
+        setAvailableEmbeddingProviders(data.providers || [])
       }
     } catch (error) {
       console.error('Failed to fetch embedding providers:', error)
     } finally {
-      setProvidersLoading(false)
+      setEmbeddingProvidersLoading(false)
     }
   }, [])
 
-  // Fetch providers when sheet opens
+  // Fetch available LLM providers
+  const fetchAvailableLLMProviders = useCallback(async () => {
+    setLLMProvidersLoading(true)
+    try {
+      const res = await fetch('/api/ai-agents/llm-providers')
+      if (res.ok) {
+        const data = await res.json()
+        setAvailableLLMProviders(data.providers || [])
+      }
+    } catch (error) {
+      console.error('Failed to fetch LLM providers:', error)
+    } finally {
+      setLLMProvidersLoading(false)
+    }
+  }, [])
+
+  // Fetch booking tool prerequisites
+  const fetchBookingPrerequisites = useCallback(async () => {
+    setBookingPrereqsLoading(true)
+    try {
+      const res = await fetch('/api/settings/booking')
+      if (res.ok) {
+        const data = await res.json()
+        setBookingPrereqs({
+          ready: data.prerequisites?.ready ?? false,
+          missing: data.prerequisites?.missing ?? [],
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch booking prerequisites:', error)
+      setBookingPrereqs({ ready: false, missing: ['Erro ao verificar pré-requisitos'] })
+    } finally {
+      setBookingPrereqsLoading(false)
+    }
+  }, [])
+
+  // Fetch providers and prerequisites when sheet opens
   useEffect(() => {
     if (open) {
-      fetchAvailableProviders()
+      fetchAvailableEmbeddingProviders()
+      fetchAvailableLLMProviders()
+      fetchBookingPrerequisites()
     }
-  }, [open, fetchAvailableProviders])
+  }, [open, fetchAvailableEmbeddingProviders, fetchAvailableLLMProviders, fetchBookingPrerequisites])
 
   // Reset form when agent changes
   useEffect(() => {
@@ -149,6 +216,9 @@ export function AIAgentForm({
       setDebounceMs(agent.debounce_ms)
       setIsActive(agent.is_active)
       setIsDefault(agent.is_default)
+      setHandoffEnabled(agent.handoff_enabled ?? true)
+      setHandoffInstructions(agent.handoff_instructions || DEFAULT_HANDOFF_INSTRUCTIONS)
+      setBookingToolEnabled(agent.booking_tool_enabled ?? false)
       // RAG config
       setEmbeddingProvider(agent.embedding_provider || DEFAULT_EMBEDDING_CONFIG.provider)
       setEmbeddingModel(agent.embedding_model || DEFAULT_EMBEDDING_CONFIG.model)
@@ -170,6 +240,9 @@ export function AIAgentForm({
       setDebounceMs(5000)
       setIsActive(true)
       setIsDefault(false)
+      setHandoffEnabled(true)
+      setHandoffInstructions(DEFAULT_HANDOFF_INSTRUCTIONS)
+      setBookingToolEnabled(false)
       // RAG config defaults
       setEmbeddingProvider(DEFAULT_EMBEDDING_CONFIG.provider)
       setEmbeddingModel(DEFAULT_EMBEDDING_CONFIG.model)
@@ -196,6 +269,9 @@ export function AIAgentForm({
       debounce_ms: debounceMs,
       is_active: isActive,
       is_default: isDefault,
+      handoff_enabled: handoffEnabled,
+      handoff_instructions: handoffEnabled ? handoffInstructions : null,
+      booking_tool_enabled: bookingToolEnabled,
       // RAG config
       embedding_provider: embeddingProvider,
       embedding_model: embeddingModel,
@@ -258,7 +334,7 @@ export function AIAgentForm({
   }
 
   // Get selected model info
-  const selectedModel = AI_AGENT_MODELS.find((m) => m.id === model)
+  const selectedModel = AI_PROVIDERS.flatMap(p => p.models).find((m) => m.id === model)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -300,27 +376,47 @@ export function AIAgentForm({
               {/* Model */}
               <div className="space-y-2">
                 <Label htmlFor="model">Modelo IA</Label>
-                <Select value={model} onValueChange={setModel}>
+                <Select value={model} onValueChange={setModel} disabled={llmProvidersLoading}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um modelo" />
+                    <SelectValue placeholder={llmProvidersLoading ? "Carregando..." : "Selecione um modelo"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {AI_AGENT_MODELS.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{m.name}</span>
-                          {m.id === DEFAULT_MODEL_ID && (
-                            <span className="rounded bg-primary-500/20 px-1.5 py-0.5 text-[10px] font-medium text-primary-400">
-                              Recomendado
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {(availableLLMProviders.length > 0 ? availableLLMProviders : AI_PROVIDERS.map(p => ({ ...p, available: true }))).map((provider) => {
+                      // Só mostra providers com API key configurada
+                      if (!provider.available) return null
+
+                      return (
+                        <SelectGroup key={provider.id}>
+                          <SelectLabel className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
+                            <span>{provider.icon}</span>
+                            <span>{provider.name}</span>
+                          </SelectLabel>
+                          {provider.models.map((m, index) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{m.name}</span>
+                                {index === 0 && provider.id === 'google' && (
+                                  <span className="rounded bg-primary-500/20 px-1.5 py-0.5 text-[10px] font-medium text-primary-400">
+                                    Recomendado
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 {selectedModel && (
                   <p className="text-xs text-[var(--ds-text-muted)]">{selectedModel.description}</p>
+                )}
+                {/* Warning if no providers available */}
+                {availableLLMProviders.length > 0 && availableLLMProviders.every(p => !p.available) && (
+                  <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-xs text-amber-400">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>Nenhum provider configurado. Configure uma API key em Configurações → IA.</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -342,7 +438,7 @@ export function AIAgentForm({
                 required
               />
               <p className="text-xs text-[var(--ds-text-muted)]">
-                Instruções que definem a personalidade e comportamento do agente
+                Dica: Defina quem é o agente, o que ele faz e como deve se comportar. Quanto mais claro, melhor.
               </p>
             </div>
 
@@ -448,13 +544,13 @@ export function AIAgentForm({
                   <Select
                     value={embeddingProvider}
                     onValueChange={(v) => handleEmbeddingProviderChange(v as EmbeddingProvider)}
-                    disabled={providersLoading}
+                    disabled={embeddingProvidersLoading}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={providersLoading ? "Carregando..." : "Selecione um provider"} />
+                      <SelectValue placeholder={embeddingProvidersLoading ? "Carregando..." : "Selecione um provider"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {(availableProviders.length > 0 ? availableProviders : EMBEDDING_PROVIDERS).map((p) => {
+                      {(availableEmbeddingProviders.length > 0 ? availableEmbeddingProviders : EMBEDDING_PROVIDERS).map((p) => {
                         const isAvailable = 'available' in p ? p.available : true
                         return (
                           <SelectItem
@@ -478,7 +574,7 @@ export function AIAgentForm({
                     </SelectContent>
                   </Select>
                   {/* Warning if selected provider is not available */}
-                  {availableProviders.length > 0 && !availableProviders.find(p => p.id === embeddingProvider)?.available && (
+                  {availableEmbeddingProviders.length > 0 && !availableEmbeddingProviders.find(p => p.id === embeddingProvider)?.available && (
                     <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-xs text-amber-400">
                       <AlertCircle className="h-4 w-4 flex-shrink-0" />
                       <span>API key do {EMBEDDING_PROVIDERS.find(p => p.id === embeddingProvider)?.name} não configurada. Configure em Configurações → IA.</span>
@@ -701,6 +797,74 @@ export function AIAgentForm({
                   id="isDefault"
                   checked={isDefault}
                   onCheckedChange={setIsDefault}
+                />
+              </div>
+
+              <div className="space-y-3 border-t border-[var(--ds-border-default)] pt-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="handoffEnabled" className="text-sm">
+                      Transferência para humano
+                    </Label>
+                    <p className="text-xs text-[var(--ds-text-muted)]">
+                      {handoffEnabled
+                        ? 'Agente pode sugerir transferir para atendente'
+                        : 'Agente nunca sugere transferência'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="handoffEnabled"
+                    checked={handoffEnabled}
+                    onCheckedChange={setHandoffEnabled}
+                  />
+                </div>
+
+                {/* Handoff Instructions - só aparece quando habilitado */}
+                {handoffEnabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="handoffInstructions" className="text-xs text-[var(--ds-text-muted)]">
+                      Regras de transferência
+                    </Label>
+                    <Textarea
+                      id="handoffInstructions"
+                      value={handoffInstructions}
+                      onChange={(e) => setHandoffInstructions(e.target.value)}
+                      placeholder="Instruções de quando transferir..."
+                      className="min-h-[100px] resize-none text-xs"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between border-t border-[var(--ds-border-default)] pt-3">
+                <div className="flex-1">
+                  <Label htmlFor="bookingToolEnabled" className="text-sm">
+                    Tool de Agendamento
+                  </Label>
+                  {bookingPrereqsLoading ? (
+                    <p className="text-xs text-[var(--ds-text-muted)]">Verificando...</p>
+                  ) : bookingPrereqs.ready ? (
+                    <p className="text-xs text-[var(--ds-text-muted)]">
+                      {bookingToolEnabled
+                        ? 'Agente envia formulário de agendamento'
+                        : 'Agente não tem acesso ao calendário'}
+                    </p>
+                  ) : (
+                    <div className="mt-1 space-y-1">
+                      <p className="text-xs text-amber-400">Configure primeiro:</p>
+                      <ul className="list-inside list-disc text-[10px] text-[var(--ds-text-muted)]">
+                        {bookingPrereqs.missing.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                <Switch
+                  id="bookingToolEnabled"
+                  checked={bookingToolEnabled}
+                  onCheckedChange={setBookingToolEnabled}
+                  disabled={!bookingPrereqs.ready || bookingPrereqsLoading}
                 />
               </div>
             </div>

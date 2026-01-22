@@ -6,7 +6,7 @@ import { useTemplateProjectDetailsQuery } from '@/hooks/useTemplateProjects';
 import {
     Loader2, ArrowLeft, Check, AlertCircle, Clock, Send, Trash2,
     RefreshCw, Filter, ChevronDown, CheckCircle, XCircle, AlertTriangle,
-    Copy, CheckSquare, Square, Eye
+    Copy, CheckSquare, Square, Eye, Pencil, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,13 +23,51 @@ export default function TemplateProjectDetailsPage() {
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
     const [expandedSection, setExpandedSection] = useState<'APPROVED' | 'REJECTED' | 'PENDING' | 'DRAFT' | 'ALL'>('ALL');
     const [previewItem, setPreviewItem] = useState<any | null>(null);
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editedTitle, setEditedTitle] = useState('');
 
     const { data: project, isLoading, error, refetch } = useTemplateProjectDetailsQuery(id);
+
+    // Rename Project Mutation
+    const renameProjectMutation = useMutation({
+        mutationFn: async (newTitle: string) => {
+            const response = await fetch(`/api/template-projects/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle })
+            });
+            if (!response.ok) throw new Error('Falha ao renomear');
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['template_projects', id] });
+            queryClient.invalidateQueries({ queryKey: ['template_projects'] });
+            toast.success('Projeto renomeado!');
+            setIsEditingTitle(false);
+        },
+        onError: () => {
+            toast.error('Erro ao renomear projeto');
+        }
+    });
+
+    const handleStartEdit = () => {
+        setEditedTitle(project?.title || '');
+        setIsEditingTitle(true);
+    };
+
+    const handleSaveTitle = () => {
+        if (!editedTitle.trim()) return toast.error('Digite um nome');
+        renameProjectMutation.mutate(editedTitle.trim());
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditingTitle(false);
+        setEditedTitle('');
+    };
 
     // DEBUG: Inspect loaded items
     React.useEffect(() => {
         if (project?.items) {
-            console.log('[DEBUG] Loaded Items:', JSON.stringify(project.items.map((i: any) => ({ name: i.name, category: i.category })), null, 2));
         }
     }, [project]);
 
@@ -58,10 +96,22 @@ export default function TemplateProjectDetailsPage() {
     const bulkSubmitMutation = useMutation({
         mutationFn: async (itemIds: string[]) => {
             const itemsToSubmit = (project?.items || []).filter((i: any) => itemIds.includes(i.id));
-            const results = [];
+            const successes: string[] = [];
+            const errors: Array<{ name: string; error: string }> = [];
 
             for (const item of itemsToSubmit) {
                 try {
+                    // Converte sample_variables (Record<string, string>) para array ordenado
+                    // Ex: {"1": "Maria", "2": "Pedido"} -> ["Maria", "Pedido"]
+                    let exampleVariables: string[] = [];
+                    if (item.sample_variables && typeof item.sample_variables === 'object') {
+                        const sampleVars = item.sample_variables;
+                        const keys = Object.keys(sampleVars)
+                            .filter(k => /^\d+$/.test(k))
+                            .sort((a, b) => Number(a) - Number(b));
+                        exampleVariables = keys.map(k => sampleVars[k]);
+                    }
+
                     const payload = {
                         itemId: item.id, // ID for server-side DB update
                         projectId: id,
@@ -71,7 +121,9 @@ export default function TemplateProjectDetailsPage() {
                         content: item.content,
                         header: item.header,
                         footer: item.footer,
-                        buttons: item.buttons
+                        buttons: item.buttons,
+                        // Inclui variáveis de exemplo do item (necessário para Meta API)
+                        exampleVariables
                     };
 
                     const response = await fetch('/api/templates/create', {
@@ -80,28 +132,58 @@ export default function TemplateProjectDetailsPage() {
                         body: JSON.stringify(payload)
                     });
 
-                    if (!response.ok) throw new Error('Falha na API');
-
                     const result = await response.json();
 
-                    if (result.results && result.results[0] && result.results[0].success) {
-                        results.push(item.id);
-                    } else {
-                        throw new Error(result.results?.[0]?.error || 'Erro desconhecido');
+                    // A API retorna erro com status 400/500 ou sucesso com objeto direto
+                    if (!response.ok) {
+                        // Erro retornado pela API (pode ter details ou error)
+                        const errorMsg = result.details?.[0]?.error || result.error || 'Erro desconhecido';
+                        throw new Error(errorMsg);
                     }
-                } catch (e) {
+
+                    // Sucesso: API retorna objeto com success: true ou o template criado
+                    if (result.success || result.id) {
+                        successes.push(item.id);
+                    } else {
+                        throw new Error('Resposta inesperada da API');
+                    }
+                } catch (e: any) {
                     console.error(`Erro ao enviar item ${item.name}`, e);
+                    errors.push({ name: item.name, error: e.message || 'Erro desconhecido' });
                 }
             }
-            return results;
+            return { successes, errors };
         },
-        onSuccess: (results) => {
+        onSuccess: ({ successes, errors }) => {
             queryClient.invalidateQueries({ queryKey: ['template_projects', id] });
-            toast.success(`${results.length} templates enviados com sucesso para a Meta!`);
             setSelectedItems([]);
+
+            if (errors.length > 0 && successes.length === 0) {
+                // Todos falharam
+                const errorDetails = errors.map(e => `• ${e.name}: ${e.error}`).join('\n');
+                toast.error(`Falha ao enviar ${errors.length} template(s)`, {
+                    description: errorDetails,
+                    duration: 8000
+                });
+            } else if (errors.length > 0) {
+                // Parcialmente sucesso
+                const errorDetails = errors.map(e => `• ${e.name}: ${e.error}`).join('\n');
+                toast.warning(`${successes.length} enviado(s), ${errors.length} falha(s)`, {
+                    description: errorDetails,
+                    duration: 8000
+                });
+            } else if (successes.length > 0) {
+                // Todos sucesso
+                toast.success(`${successes.length} template(s) enviado(s) com sucesso para a Meta!`);
+            } else {
+                // Nenhum item para enviar (edge case)
+                toast.info('Nenhum template selecionado para envio.');
+            }
         },
-        onError: () => {
-            toast.error('Erro ao enviar alguns templates. Verifique e tente novamente.');
+        onError: (error: any) => {
+            toast.error('Erro inesperado ao enviar templates', {
+                description: error.message || 'Verifique e tente novamente.'
+            });
         }
     });
 
@@ -173,7 +255,7 @@ export default function TemplateProjectDetailsPage() {
                     <span>Erro ao carregar projeto ou projeto não encontrado.</span>
                 </div>
                 <button
-                    onClick={() => router.push('/templates')}
+                    onClick={() => router.push('/templates?tab=projects')}
                     className="flex items-center gap-2 text-gray-400 hover:text-white"
                 >
                     <ArrowLeft className="w-4 h-4" />
@@ -189,16 +271,56 @@ export default function TemplateProjectDetailsPage() {
                 <div className="min-w-0">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => router.push('/templates')}
+                            onClick={() => router.push('/templates?tab=projects')}
                             className="p-2 -ml-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors border border-white/10 bg-zinc-950/40"
-                            aria-label="Voltar para templates"
+                            aria-label="Voltar para projetos"
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
 
                         <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <PageTitle className="text-2xl sm:text-3xl truncate">{project.title}</PageTitle>
+                                {isEditingTitle ? (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={editedTitle}
+                                            onChange={(e) => setEditedTitle(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSaveTitle();
+                                                if (e.key === 'Escape') handleCancelEdit();
+                                            }}
+                                            autoFocus
+                                            className="text-2xl sm:text-3xl font-bold bg-transparent border-b-2 border-emerald-500 outline-none text-white min-w-[200px]"
+                                        />
+                                        <button
+                                            onClick={handleSaveTitle}
+                                            disabled={renameProjectMutation.isPending}
+                                            className="p-1.5 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
+                                            title="Salvar"
+                                        >
+                                            {renameProjectMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                                        </button>
+                                        <button
+                                            onClick={handleCancelEdit}
+                                            className="p-1.5 text-gray-400 hover:bg-white/10 rounded-lg transition-colors"
+                                            title="Cancelar"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <PageTitle className="text-2xl sm:text-3xl truncate">{project.title}</PageTitle>
+                                        <button
+                                            onClick={handleStartEdit}
+                                            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                            title="Renomear projeto"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                    </>
+                                )}
                                 <span className="px-2 py-0.5 text-xs rounded-full border bg-zinc-950/40 border-white/10 text-gray-400 shrink-0">
                                     {groups.DRAFT.length === 0 && groups.PENDING.length === 0 ? 'Concluído' : 'Em Progresso'}
                                 </span>
@@ -311,6 +433,30 @@ export default function TemplateProjectDetailsPage() {
 
                                 {isExpanded && (
                                     <div className="px-4 pb-4 space-y-2">
+                                        {/* Checkbox "Selecionar Tudo" para seção DRAFT */}
+                                        {section.id === 'DRAFT' && sectionItems.length > 0 && (
+                                            <div
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSelectAll();
+                                                }}
+                                                className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-950/60 border border-white/5 cursor-pointer hover:bg-white/5 transition-colors"
+                                            >
+                                                <div className={cn(
+                                                    "w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0",
+                                                    selectedItems.length === groups.DRAFT.length && groups.DRAFT.length > 0
+                                                        ? "bg-emerald-500 border-emerald-500 text-black"
+                                                        : "border-white/20 text-transparent hover:border-white/40"
+                                                )}>
+                                                    <Check className="w-3.5 h-3.5" />
+                                                </div>
+                                                <span className="text-sm text-gray-400">
+                                                    {selectedItems.length === groups.DRAFT.length && groups.DRAFT.length > 0
+                                                        ? 'Desmarcar tudo'
+                                                        : `Selecionar tudo (${groups.DRAFT.length})`}
+                                                </span>
+                                            </div>
+                                        )}
                                         {/* @ts-ignore */}
                                         {sectionItems.map((item: any) => {
                                             const isSelected = selectedItems.includes(item.id);

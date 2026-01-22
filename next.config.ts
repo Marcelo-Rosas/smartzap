@@ -29,6 +29,13 @@ const nextConfig: NextConfig = {
   // Standalone output for Docker
   output: 'standalone',
 
+  // Optimize barrel imports for better tree-shaking (experimental in Next.js 16)
+  // This automatically transforms imports like `import { X } from 'lucide-react'`
+  // to direct module imports, reducing bundle size significantly
+  experimental: {
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
+
   // Include SQL migration files in the serverless bundle
   outputFileTracingIncludes: {
     '/api/installer/run-stream': ['./supabase/migrations/**/*', './lib/migrations/**/*'],
@@ -37,7 +44,7 @@ const nextConfig: NextConfig = {
   // Environment variables exposed to client
   env: {
     NEXT_PUBLIC_APP_NAME: 'SmartZap',
-    NEXT_PUBLIC_APP_VERSION: process.env.VERCEL_GIT_COMMIT_SHA?.substring(0, 7) || 'dev',
+    NEXT_PUBLIC_APP_VERSION: process.env.VERCEL_GIT_COMMIT_SHA?.substring(0, 7) || '1.0.0',
   },
 
   // React Compiler for automatic memoization (moved from experimental in Next.js 16)
