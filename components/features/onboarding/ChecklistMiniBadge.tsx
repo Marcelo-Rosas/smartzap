@@ -7,9 +7,11 @@ import { cn } from '@/lib/utils';
 
 interface ChecklistMiniBadgeProps {
   onClick?: () => void;
+  /** Se true, considera onboarding completo independente do localStorage */
+  isOnboardingCompletedInDb?: boolean;
 }
 
-export function ChecklistMiniBadge({ onClick }: ChecklistMiniBadgeProps) {
+export function ChecklistMiniBadge({ onClick, isOnboardingCompletedInDb }: ChecklistMiniBadgeProps) {
   const {
     progress,
     checklistProgress,
@@ -17,11 +19,14 @@ export function ChecklistMiniBadge({ onClick }: ChecklistMiniBadgeProps) {
     minimizeChecklist,
   } = useOnboardingProgress();
 
+  // Considera completo se está no banco OU no localStorage
+  const isEffectivelyComplete = isOnboardingCompletedInDb || shouldShowChecklist;
+
   // Mostra o badge se:
   // 1. O checklist deveria estar visível mas está minimizado, OU
   // 2. O checklist foi dismissado mas ainda tem itens pendentes
   const shouldShowBadge =
-    (shouldShowChecklist && progress.isChecklistMinimized) ||
+    (isEffectivelyComplete && progress.isChecklistMinimized) ||
     (progress.isChecklistDismissed && checklistProgress.percentage < 100);
 
   if (!shouldShowBadge) {

@@ -840,7 +840,7 @@ export function DashboardShell({
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <ChecklistMiniBadge />
+                        <ChecklistMiniBadge isOnboardingCompletedInDb={isOnboardingCompletedInDb} />
                         <ThemeToggle compact />
                         <DevModeToggle />
                         <button className="relative group focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md p-1" aria-label="Notificações (1 nova)">
@@ -861,7 +861,8 @@ export function DashboardShell({
                 {/* Page Content */}
                 <PageContentShell>
                     {/* Onboarding Checklist - aparece apenas na home do dashboard */}
-                    {pathname === '/' && shouldShowChecklist && !onboardingProgress.isChecklistMinimized && healthStatus && (
+                    {/* Mostra se: onboarding completo (banco OU localStorage) E não dismissado E não minimizado */}
+                    {pathname === '/' && (isOnboardingCompletedInDb || shouldShowChecklist) && !onboardingProgress.isChecklistMinimized && !onboardingProgress.isChecklistDismissed && healthStatus && (
                         <div className="mb-6">
                             <OnboardingChecklist
                                 healthStatus={healthStatus}
