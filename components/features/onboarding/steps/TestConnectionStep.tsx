@@ -231,7 +231,7 @@ export function TestConnectionStep({
         <p className="text-sm text-zinc-400 mb-3">Status da conexão:</p>
 
         <div className="flex items-center justify-between">
-          <span className="text-zinc-300">Phone Number ID</span>
+          <span className="text-zinc-300">Identificação do número de telefone</span>
           <div className="flex items-center gap-2">
             <StatusIcon status={validation.phoneNumberId} />
             <span className="text-sm text-zinc-400">
@@ -241,7 +241,7 @@ export function TestConnectionStep({
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-zinc-300">Business Account ID</span>
+          <span className="text-zinc-300">WABA ID</span>
           <div className="flex items-center gap-2">
             <StatusIcon status={validation.businessAccountId} />
             <span className={`text-sm ${validation.businessAccountId === 'warning' ? 'text-amber-400' : 'text-zinc-400'}`}>
@@ -257,7 +257,7 @@ export function TestConnectionStep({
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-zinc-300">Access Token</span>
+          <span className="text-zinc-300">Token de acesso</span>
           <div className="flex items-center gap-2">
             <StatusIcon status={validation.accessToken} />
             <span className="text-sm text-zinc-400">

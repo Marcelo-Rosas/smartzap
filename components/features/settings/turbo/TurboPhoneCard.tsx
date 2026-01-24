@@ -15,7 +15,7 @@ export function TurboPhoneCard({
 
   return (
     <div className="bg-[var(--ds-bg-elevated)] border border-[var(--ds-border-default)] rounded-xl p-4 flex flex-col">
-      <div className="text-xs text-[var(--ds-text-muted)] mb-2">Phone Number ID</div>
+      <div className="text-xs text-[var(--ds-text-muted)] mb-2">Identificação do número de telefone</div>
       <div className="flex-1 flex items-center">
         <span className="text-lg font-mono font-medium text-[var(--ds-text-primary)] break-all">
           {id || '-'}

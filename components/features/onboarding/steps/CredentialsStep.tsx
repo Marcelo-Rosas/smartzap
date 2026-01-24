@@ -83,7 +83,7 @@ export function CredentialsStep({
         {/* Phone Number ID */}
         <div className="space-y-2">
           <Label htmlFor="phoneNumberId" className="flex items-center gap-2">
-            Phone Number ID
+            Identificação do número de telefone (Phone Number ID)
             <span className="text-red-400">*</span>
             <HelpCircle className="w-3.5 h-3.5 text-zinc-500" />
           </Label>
@@ -109,7 +109,7 @@ export function CredentialsStep({
         {/* Business Account ID */}
         <div className="space-y-2">
           <Label htmlFor="businessAccountId" className="flex items-center gap-2">
-            WhatsApp Business Account ID
+            Identificação da conta do WhatsApp Business (WABA ID)
             <span className="text-red-400">*</span>
             <HelpCircle className="w-3.5 h-3.5 text-zinc-500" />
           </Label>
@@ -140,7 +140,7 @@ export function CredentialsStep({
         {/* Access Token */}
         <div className="space-y-2">
           <Label htmlFor="accessToken" className="flex items-center gap-2">
-            Access Token
+            Token de acesso
             <span className="text-red-400">*</span>
             <HelpCircle className="w-3.5 h-3.5 text-zinc-500" />
           </Label>

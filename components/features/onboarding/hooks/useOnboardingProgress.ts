@@ -12,11 +12,9 @@ export type OnboardingStep =
   | 'create-app'          // Passo 2 - criar app Meta
   | 'add-whatsapp'        // Passo 3 - adicionar WhatsApp
   | 'credentials'         // Passo 4 - copiar credenciais
-  | 'test-connection'     // Passo 5 - testar
+  | 'test-connection'     // Passo 5 - testar (usado no modo normal)
   | 'configure-webhook'   // Passo 6 - configurar webhook
-  | 'sync-templates'      // Passo 7 - sincronizar templates
-  | 'send-first-message'  // Passo 8 - enviar mensagem de teste
-  | 'create-permanent-token' // Passo 9 - token permanente (opcional)
+  | 'create-permanent-token' // Passo 7 - token permanente (opcional)
   | 'direct-credentials'  // Caminho B - input direto
   | 'complete';           // Concluído
 
@@ -115,6 +113,7 @@ export function useOnboardingProgress() {
 
   const nextStep = useCallback(() => {
     setProgress(prev => {
+      // Fluxo simplificado: removidos sync-templates e send-first-message
       const guidedSteps: OnboardingStep[] = [
         'requirements',
         'create-app',
@@ -122,8 +121,6 @@ export function useOnboardingProgress() {
         'credentials',
         'test-connection',
         'configure-webhook',
-        'sync-templates',
-        'send-first-message',
         'create-permanent-token',
         'complete',
       ];
@@ -159,6 +156,7 @@ export function useOnboardingProgress() {
 
   const previousStep = useCallback(() => {
     setProgress(prev => {
+      // Fluxo simplificado: removidos sync-templates e send-first-message
       const guidedSteps: OnboardingStep[] = [
         'welcome',
         'requirements',
@@ -167,8 +165,6 @@ export function useOnboardingProgress() {
         'credentials',
         'test-connection',
         'configure-webhook',
-        'sync-templates',
-        'send-first-message',
         'create-permanent-token',
       ];
 
@@ -242,6 +238,7 @@ export function useOnboardingProgress() {
   }, [isOnboardingComplete, progress.isChecklistDismissed]);
 
   const currentStepNumber = useMemo(() => {
+    // Fluxo simplificado: 7 passos
     const guidedSteps: OnboardingStep[] = [
       'requirements',
       'create-app',
@@ -249,15 +246,13 @@ export function useOnboardingProgress() {
       'credentials',
       'test-connection',
       'configure-webhook',
-      'sync-templates',
-      'send-first-message',
       'create-permanent-token',
     ];
     const index = guidedSteps.indexOf(progress.currentStep);
     return index >= 0 ? index + 1 : 0;
   }, [progress.currentStep]);
 
-  const totalSteps = 9;
+  const totalSteps = 7;
 
   // Progresso do checklist (usado pelo ChecklistMiniBadge)
   const checklistProgress = useMemo(() => {

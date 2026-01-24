@@ -44,11 +44,9 @@ import {
     EmptyStateBanner,
     SuccessBanner,
     CredentialsModal,
-    SetupChecklist,
     GuidedTour,
     useGuidedTour,
 } from '@/components/features/setup'
-import { useSetupStatus } from '@/hooks/useSetupStatus'
 
 export function DashboardShell({
     children,
@@ -250,8 +248,6 @@ export function DashboardShell({
     // Determina se precisa configurar webhook (WhatsApp conectado mas webhook não)
     const needsWebhookSetup = isWhatsAppConnected && !isWebhookConfigured && healthStatus !== undefined
 
-    // Hook do novo sistema de setup (Dashboard-First)
-    const setupStatus = useSetupStatus(healthStatus ?? null)
 
     // Handler para salvar credenciais (NÃO marca como completo - o usuário ainda precisa configurar webhook)
     const handleSaveCredentials = useCallback(async (credentials: {
@@ -642,28 +638,6 @@ export function DashboardShell({
                         />
                     )}
 
-                    {/* NOVO: SetupChecklist - lateral na homepage quando onboarding completo */}
-                    {/* Guard: só mostra após TODOS os loadings terminarem */}
-                    {pathname === '/' &&
-                     healthStatus !== undefined &&
-                     !isOnboardingStatusLoading &&
-                     !setupStatus.isLoading &&
-                     isOnboardingCompletedInDb &&
-                     isWhatsAppConnected &&
-                     !setupStatus.isAllComplete && (
-                        <div className="mb-6">
-                            <SetupChecklist
-                                isWhatsAppConnected={setupStatus.isWhatsAppConnected}
-                                isWebhookConfigured={setupStatus.isWebhookConfigured}
-                                hasSentFirstMessage={setupStatus.hasSentFirstMessage}
-                                isPermanentTokenConfirmed={setupStatus.isPermanentTokenConfirmed}
-                                onConnectWhatsApp={() => setShowCredentialsModal(true)}
-                                onSendTestMessage={() => router.push('/campaigns/new')}
-                                onConfigureWebhook={() => setForceModalStep('configure-webhook')}
-                                onCreatePermanentToken={() => setForceModalStep('create-permanent-token')}
-                            />
-                        </div>
-                    )}
 
                     {/* Onboarding Checklist LEGADO - mantido para transição */}
                     {/* Mostra se: onboarding completo (banco OU localStorage) E não dismissado E não minimizado E novo checklist não ativo */}

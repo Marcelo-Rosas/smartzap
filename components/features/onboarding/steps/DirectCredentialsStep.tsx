@@ -174,7 +174,7 @@ export function DirectCredentialsStep({
         {/* Phone Number ID */}
         <div className="space-y-2">
           <Label htmlFor="phoneNumberId" className="flex items-center gap-2">
-            Phone Number ID
+            Identificação do número de telefone (Phone Number ID)
             <span className="text-red-400">*</span>
           </Label>
           <Input
@@ -196,7 +196,7 @@ export function DirectCredentialsStep({
         {/* Business Account ID */}
         <div className="space-y-2">
           <Label htmlFor="businessAccountId" className="flex items-center gap-2">
-            WhatsApp Business Account ID
+            Identificação da conta do WhatsApp Business (WABA ID)
             <span className="text-red-400">*</span>
           </Label>
           <Input
@@ -218,7 +218,7 @@ export function DirectCredentialsStep({
         {/* Access Token */}
         <div className="space-y-2">
           <Label htmlFor="accessToken" className="flex items-center gap-2">
-            Access Token
+            Token de acesso
             <span className="text-red-400">*</span>
           </Label>
           <Input

@@ -116,7 +116,7 @@ export function CredentialsModal({
         <div className="space-y-4 mt-4">
           {/* Phone Number ID */}
           <div className="space-y-2">
-            <Label htmlFor="phoneNumberId">Phone Number ID</Label>
+            <Label htmlFor="phoneNumberId">Identificação do número de telefone (Phone Number ID)</Label>
             <Input
               id="phoneNumberId"
               placeholder="Ex: 123456789012345"
@@ -130,7 +130,7 @@ export function CredentialsModal({
 
           {/* Business Account ID */}
           <div className="space-y-2">
-            <Label htmlFor="businessAccountId">Business Account ID</Label>
+            <Label htmlFor="businessAccountId">Identificação da conta do WhatsApp Business (WABA ID)</Label>
             <Input
               id="businessAccountId"
               placeholder="Ex: 123456789012345"
@@ -144,7 +144,7 @@ export function CredentialsModal({
 
           {/* Access Token */}
           <div className="space-y-2">
-            <Label htmlFor="accessToken">Access Token</Label>
+            <Label htmlFor="accessToken">Token de acesso</Label>
             <div className="relative">
               <Input
                 id="accessToken"

@@ -18,33 +18,36 @@ import { AddWhatsAppStep } from './steps/AddWhatsAppStep';
 import { CredentialsStep } from './steps/CredentialsStep';
 import { TestConnectionStep } from './steps/TestConnectionStep';
 import { ConfigureWebhookStep } from './steps/ConfigureWebhookStep';
-import { SyncTemplatesStep } from './steps/SyncTemplatesStep';
-import { SendFirstMessageStep } from './steps/SendFirstMessageStep';
 import { CreatePermanentTokenStep } from './steps/CreatePermanentTokenStep';
 import { DirectCredentialsStep } from './steps/DirectCredentialsStep';
 import { OnboardingCompleteStep } from './steps/OnboardingCompleteStep';
 import { Button } from '@/components/ui/button';
 
-// Ordem dos steps do tutorial (fluxo completo de configuração)
+// Ordem dos steps do tutorial (fluxo simplificado - 6 passos)
+// Removidos: test-connection (integrado em credentials), sync-templates (automático), send-first-message (depende de templates)
 const TUTORIAL_STEPS: OnboardingStep[] = [
   'requirements',
   'create-app',
   'add-whatsapp',
   'credentials',
-  'test-connection',
   'configure-webhook',
-  'sync-templates',
-  'send-first-message',
   'create-permanent-token',
 ];
 
 // Componente interno para wizard de tutorial com navegação sequencial
 function TutorialWizard({
   initialStep,
-  onClose
+  onClose,
+  onSaveCredentials,
 }: {
   initialStep: OnboardingStep;
   onClose: () => void;
+  onSaveCredentials?: (credentials: {
+    phoneNumberId: string;
+    businessAccountId: string;
+    accessToken: string;
+    metaAppId: string;
+  }) => Promise<void>;
 }) {
   // Encontra o índice inicial baseado no step fornecido
   const initialIndex = TUTORIAL_STEPS.indexOf(initialStep);
@@ -109,46 +112,22 @@ function TutorialWizard({
         );
       case 'credentials':
         return (
-          <CredentialsStep
+          <DirectCredentialsStep
             credentials={credentials}
             onCredentialsChange={setCredentials}
-            onNext={handleNext}
+            onComplete={async () => {
+              // Salva credenciais se callback disponível
+              if (onSaveCredentials) {
+                await onSaveCredentials(credentials);
+              }
+              handleNext();
+            }}
             onBack={handleBack}
-            stepNumber={stepNumber}
-            totalSteps={totalSteps}
-          />
-        );
-      case 'test-connection':
-        return (
-          <TestConnectionStep
-            credentials={credentials}
-            onComplete={handleNext}
-            onBack={handleBack}
-            stepNumber={stepNumber}
-            totalSteps={totalSteps}
           />
         );
       case 'configure-webhook':
         return (
           <ConfigureWebhookStep
-            onNext={handleNext}
-            onBack={handleBack}
-            stepNumber={stepNumber}
-            totalSteps={totalSteps}
-          />
-        );
-      case 'sync-templates':
-        return (
-          <SyncTemplatesStep
-            onNext={handleNext}
-            onBack={handleBack}
-            stepNumber={stepNumber}
-            totalSteps={totalSteps}
-          />
-        );
-      case 'send-first-message':
-        return (
-          <SendFirstMessageStep
             onNext={handleNext}
             onBack={handleBack}
             stepNumber={stepNumber}
@@ -233,7 +212,11 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
             <DialogDescription>Guia passo a passo para configurar o WhatsApp Business</DialogDescription>
           </DialogHeader>
 
-          <TutorialWizard initialStep={forceStep} onClose={handleTutorialClose} />
+          <TutorialWizard
+            initialStep={forceStep}
+            onClose={handleTutorialClose}
+            onSaveCredentials={onSaveCredentials}
+          />
         </DialogContent>
       </Dialog>
     );
@@ -353,26 +336,6 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
               onClose?.();
             }}
             stepNumber={6}
-            totalSteps={totalSteps}
-          />
-        );
-
-      case 'sync-templates':
-        return (
-          <SyncTemplatesStep
-            onNext={nextStep}
-            onBack={previousStep}
-            stepNumber={currentStepNumber}
-            totalSteps={totalSteps}
-          />
-        );
-
-      case 'send-first-message':
-        return (
-          <SendFirstMessageStep
-            onNext={nextStep}
-            onBack={previousStep}
-            stepNumber={currentStepNumber}
             totalSteps={totalSteps}
           />
         );

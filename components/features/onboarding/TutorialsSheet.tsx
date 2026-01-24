@@ -8,16 +8,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import {
-  HelpCircle,
-  Check,
-  ArrowRight,
-  ExternalLink,
-  BookOpen,
-  Clock,
-  ChevronRight,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { HelpCircle, ChevronRight } from 'lucide-react'
 import type { OnboardingStep } from './hooks/useOnboardingProgress'
 
 interface TutorialItem {
@@ -65,41 +56,17 @@ const TUTORIALS: TutorialItem[] = [
     group: 'connect',
   },
   {
-    id: 'test-connection',
-    number: 5,
-    title: 'Testar Conexão',
-    description: 'Valide se as credenciais funcionam',
-    duration: '1min',
-    group: 'connect',
-  },
-  {
     id: 'configure-webhook',
-    number: 6,
+    number: 5,
     title: 'Configurar Webhook',
     description: 'Receba notificações de entrega',
     duration: '3min',
     group: 'connect',
   },
-  // Grupo: Primeiros Passos
-  {
-    id: 'sync-templates',
-    number: 7,
-    title: 'Sincronizar Templates',
-    description: 'Importe seus templates aprovados',
-    duration: '1min',
-    group: 'start',
-  },
-  {
-    id: 'send-first-message',
-    number: 8,
-    title: 'Enviar Mensagem Teste',
-    description: 'Teste o envio de mensagens',
-    duration: '2min',
-    group: 'start',
-  },
+  // Grupo: Avançado
   {
     id: 'create-permanent-token',
-    number: 9,
+    number: 6,
     title: 'Token Permanente',
     description: 'Evite interrupções por expiração',
     duration: '5min',
@@ -110,38 +77,22 @@ const TUTORIALS: TutorialItem[] = [
 const GROUP_LABELS = {
   create: 'Criar App',
   connect: 'Conectar',
-  start: 'Primeiros Passos',
+  start: 'Avançado',
 }
 
 interface TutorialsSheetProps {
-  completedSteps?: OnboardingStep[]
-  currentStep?: OnboardingStep | null
   onOpenStep?: (step: OnboardingStep) => void
 }
 
 export function TutorialsSheet({
-  completedSteps = [],
-  currentStep = null,
   onOpenStep,
 }: TutorialsSheetProps) {
   const [open, setOpen] = useState(false)
-
-  // Encontra o primeiro step não completado como "current" se não foi passado
-  const effectiveCurrentStep = currentStep || TUTORIALS.find(t => !completedSteps.includes(t.id))?.id || null
-
-  const getStepStatus = (stepId: OnboardingStep) => {
-    if (completedSteps.includes(stepId)) return 'completed'
-    if (effectiveCurrentStep === stepId) return 'current'
-    return 'pending'
-  }
 
   const handleStepClick = (step: OnboardingStep) => {
     setOpen(false)
     onOpenStep?.(step)
   }
-
-  const completedCount = completedSteps.length
-  const totalCount = TUTORIALS.length
 
   const groupedTutorials = {
     create: TUTORIALS.filter(t => t.group === 'create'),
@@ -161,32 +112,11 @@ export function TutorialsSheet({
       </SheetTrigger>
 
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader className="pb-6">
-          <SheetTitle className="text-xl font-semibold">Configuração</SheetTitle>
-
-          {/* Progress - mais proeminente */}
-          <div className="mt-4 space-y-3">
-            <div className="h-2.5 bg-zinc-800 rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-700 ease-out",
-                  completedCount === totalCount
-                    ? "bg-emerald-500"
-                    : "bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400"
-                )}
-                style={{ width: `${Math.max((completedCount / totalCount) * 100, 2)}%` }}
-              />
-            </div>
-            <p className="text-sm text-zinc-400">
-              {completedCount === 0 ? (
-                "Vamos começar?"
-              ) : completedCount === totalCount ? (
-                <span className="text-emerald-400 font-medium">Tudo pronto!</span>
-              ) : (
-                <><span className="text-white font-medium">{completedCount}</span> de {totalCount} completos</>
-              )}
-            </p>
-          </div>
+        <SheetHeader className="pb-4">
+          <SheetTitle className="text-xl font-semibold">Tutoriais</SheetTitle>
+          <p className="text-sm text-zinc-400 mt-1">
+            Guias passo a passo para configurar o WhatsApp Business API
+          </p>
         </SheetHeader>
 
         <div className="space-y-8 px-4">
@@ -198,108 +128,37 @@ export function TutorialsSheet({
               </p>
 
               {/* Group items */}
-              <div className="space-y-2.5">
-                {groupedTutorials[groupKey].map((tutorial) => {
-                  const status = getStepStatus(tutorial.id)
-                  const isCurrent = status === 'current'
-                  const isCompleted = status === 'completed'
-
-                  return (
-                    <button
-                      key={tutorial.id}
-                      onClick={() => handleStepClick(tutorial.id)}
-                      className={cn(
-                        'w-full text-left transition-all duration-200 rounded-xl',
-                        // Current: destaque máximo
-                        isCurrent && 'bg-emerald-500/15 border-2 border-emerald-500/40 p-4',
-                        // Completed: discreto
-                        isCompleted && 'bg-transparent hover:bg-zinc-800/50 p-3',
-                        // Pending: neutro
-                        !isCurrent && !isCompleted && 'bg-zinc-800/40 hover:bg-zinc-800/60 p-3'
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Status indicator */}
-                        <div className={cn(
-                          'flex items-center justify-center flex-shrink-0 transition-all',
-                          isCurrent && 'w-8 h-8 rounded-full bg-emerald-500 text-white',
-                          isCompleted && 'w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-500',
-                          !isCurrent && !isCompleted && 'w-6 h-6 rounded-full bg-zinc-700 text-zinc-500'
-                        )}>
-                          {isCompleted ? (
-                            <Check className="w-3.5 h-3.5" strokeWidth={3} />
-                          ) : isCurrent ? (
-                            <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
-                          ) : (
-                            <span className="text-xs font-medium">{tutorial.number}</span>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <p className={cn(
-                            'font-medium transition-colors',
-                            isCurrent && 'text-white text-base',
-                            isCompleted && 'text-zinc-500 text-sm',
-                            !isCurrent && !isCompleted && 'text-zinc-300 text-sm'
-                          )}>
-                            {tutorial.title}
-                          </p>
-
-                          {/* Descrição só no current */}
-                          {isCurrent && (
-                            <p className="text-sm text-emerald-200/70 mt-0.5">
-                              {tutorial.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Tempo só no current */}
-                        {isCurrent && (
-                          <div className="flex items-center gap-1.5 text-emerald-300/80 flex-shrink-0">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span className="text-sm font-medium">{tutorial.duration}</span>
-                          </div>
-                        )}
-
-                        {/* Chevron para completed/pending */}
-                        {!isCurrent && (
-                          <ChevronRight className={cn(
-                            'w-4 h-4 flex-shrink-0 transition-colors',
-                            isCompleted ? 'text-zinc-600' : 'text-zinc-500'
-                          )} />
-                        )}
+              <div className="space-y-2">
+                {groupedTutorials[groupKey].map((tutorial) => (
+                  <button
+                    key={tutorial.id}
+                    onClick={() => handleStepClick(tutorial.id)}
+                    className="w-full text-left p-3 rounded-xl bg-zinc-800/40 hover:bg-zinc-800/60 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Number */}
+                      <div className="w-6 h-6 rounded-full bg-zinc-700 text-zinc-400 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-medium">{tutorial.number}</span>
                       </div>
 
-                      {/* CTA no current */}
-                      {isCurrent && (
-                        <div className="mt-3 flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-500 text-white font-medium text-sm hover:bg-emerald-400 transition-colors">
-                          Começar
-                          <ArrowRight className="w-4 h-4" />
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-zinc-300 text-sm">{tutorial.title}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{tutorial.description}</p>
+                      </div>
+
+                      {/* Duration + Chevron */}
+                      <div className="flex items-center gap-2 text-zinc-500 flex-shrink-0">
+                        <span className="text-xs">{tutorial.duration}</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           ))}
 
-          {/* Documentation link - mais clean */}
-          <div className="pt-4 border-t border-zinc-800/50">
-            <a
-              href="https://developers.facebook.com/docs/whatsapp/cloud-api"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between py-3 px-1 text-zinc-400 hover:text-zinc-200 transition-colors group"
-            >
-              <div className="flex items-center gap-3">
-                <BookOpen className="w-4 h-4" />
-                <span className="text-sm">Documentação Meta</span>
-              </div>
-              <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </a>
-          </div>
         </div>
       </SheetContent>
     </Sheet>

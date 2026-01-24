@@ -139,7 +139,7 @@ export function ProvisioningView({ data, progress, title, subtitle, onProgress, 
 
   useEffect(() => {
     startProvisioning();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally run only on mount - startProvisioning is stable
   }, []);
 
   return (

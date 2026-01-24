@@ -45,7 +45,7 @@ export function WelcomeStep({ onSelectPath }: WelcomeStepProps) {
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-white mb-1">Já tenho as credenciais</h3>
             <p className="text-sm text-zinc-400 mb-2">
-              Já criei o app no Meta e tenho Phone Number ID, Business Account ID e Access Token.
+              Já criei o app no Meta e tenho Identificação do número de telefone, WABA ID e Token de acesso.
             </p>
             <div className="flex items-center gap-1.5 text-xs text-zinc-500">
               <Clock className="w-3.5 h-3.5" />
