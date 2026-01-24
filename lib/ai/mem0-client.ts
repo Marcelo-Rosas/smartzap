@@ -194,10 +194,12 @@ export async function fetchRelevantMemories(
 
   try {
     // Busca memórias como array (não string formatada)
+    // IMPORTANTE: app_id deve ser passado para filtrar memórias do SmartZap
     const memories = await withTimeout(
       getMemories(query, {
         user_id: config.user_id,
         agent_id: config.agent_id,
+        app_id: config.app_id || APP_ID,
         mem0ApiKey: creds.apiKey,
       }),
       MEM0_TIMEOUT_MS
