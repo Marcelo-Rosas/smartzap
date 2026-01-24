@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,156 @@ import { SendFirstMessageStep } from './steps/SendFirstMessageStep';
 import { CreatePermanentTokenStep } from './steps/CreatePermanentTokenStep';
 import { DirectCredentialsStep } from './steps/DirectCredentialsStep';
 import { OnboardingCompleteStep } from './steps/OnboardingCompleteStep';
+import { Button } from '@/components/ui/button';
+
+// Ordem dos steps do tutorial (fluxo completo de configuração)
+const TUTORIAL_STEPS: OnboardingStep[] = [
+  'requirements',
+  'create-app',
+  'add-whatsapp',
+  'credentials',
+  'test-connection',
+  'configure-webhook',
+  'sync-templates',
+  'send-first-message',
+  'create-permanent-token',
+];
+
+// Componente interno para wizard de tutorial com navegação sequencial
+function TutorialWizard({
+  initialStep,
+  onClose
+}: {
+  initialStep: OnboardingStep;
+  onClose: () => void;
+}) {
+  // Encontra o índice inicial baseado no step fornecido
+  const initialIndex = TUTORIAL_STEPS.indexOf(initialStep);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex >= 0 ? initialIndex : 0);
+  const [credentials, setCredentials] = useState({
+    phoneNumberId: '',
+    businessAccountId: '',
+    accessToken: '',
+  });
+
+  const currentStep = TUTORIAL_STEPS[currentIndex];
+  const totalSteps = TUTORIAL_STEPS.length;
+  const stepNumber = currentIndex + 1;
+  const isLastStep = currentIndex === totalSteps - 1;
+  const isFirstStep = currentIndex === 0;
+
+  const handleNext = useCallback(async () => {
+    if (isLastStep) {
+      onClose();
+    } else {
+      setCurrentIndex(prev => prev + 1);
+    }
+  }, [isLastStep, onClose]);
+
+  const handleBack = useCallback(() => {
+    if (isFirstStep) {
+      onClose();
+    } else {
+      setCurrentIndex(prev => prev - 1);
+    }
+  }, [isFirstStep, onClose]);
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 'requirements':
+        return (
+          <RequirementsStep
+            onNext={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'create-app':
+        return (
+          <CreateAppStep
+            onNext={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'add-whatsapp':
+        return (
+          <AddWhatsAppStep
+            onNext={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'credentials':
+        return (
+          <CredentialsStep
+            credentials={credentials}
+            onCredentialsChange={setCredentials}
+            onNext={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'test-connection':
+        return (
+          <TestConnectionStep
+            credentials={credentials}
+            onComplete={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'configure-webhook':
+        return (
+          <ConfigureWebhookStep
+            onNext={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'sync-templates':
+        return (
+          <SyncTemplatesStep
+            onNext={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'send-first-message':
+        return (
+          <SendFirstMessageStep
+            onNext={handleNext}
+            onBack={handleBack}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      case 'create-permanent-token':
+        return (
+          <CreatePermanentTokenStep
+            currentToken=""
+            onTokenUpdate={async () => {}}
+            onNext={onClose}
+            onBack={handleBack}
+            onSkip={onClose}
+            stepNumber={stepNumber}
+            totalSteps={totalSteps}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return renderStep();
+}
 
 interface OnboardingModalProps {
   isConnected: boolean;
@@ -36,9 +186,16 @@ interface OnboardingModalProps {
   onMarkComplete: () => Promise<void>;
   /** Força exibição do modal em um step específico (ex: 'configure-webhook') */
   forceStep?: OnboardingStep;
+  /** Callback para fechar o modal (limpa forceStep no pai) */
+  onClose?: () => void;
+  /** Modo tutorial: mostra só o conteúdo + botão fechar, sem navegação */
+  tutorialMode?: boolean;
 }
 
-export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete, forceStep }: OnboardingModalProps) {
+export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete, forceStep, onClose, tutorialMode = false }: OnboardingModalProps) {
+  // DEBUG
+  console.log('[OnboardingModal] Props recebidas:', { tutorialMode, forceStep, onClose: !!onClose });
+
   const {
     progress,
     isLoaded,
@@ -53,42 +210,43 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
     goToStep,
   } = useOnboardingProgress();
 
-  // Se forceStep foi passado e é diferente do current, navega para ele
-  // Mas NÃO reseta se o usuário foi intencionalmente para 'complete' (fechar modal)
-  // CRÍTICO: Esperar localStorage carregar antes de forçar step (evita sobrescrever estado salvo)
-  React.useEffect(() => {
-    if (!isLoaded) return;
+  // ============================================================================
+  // MODO TUTORIAL: Wizard com navegação sequencial pelos 9 passos
+  // ============================================================================
+  if (tutorialMode && forceStep) {
+    const handleTutorialClose = () => {
+      console.log('[Tutorial] handleTutorialClose chamado');
+      onClose?.();
+    };
 
-    if (forceStep && progress.currentStep !== forceStep && progress.currentStep !== 'complete') {
-      goToStep(forceStep);
-    }
-  }, [isLoaded, forceStep, progress.currentStep, goToStep]);
+    return (
+      <Dialog open={true} onOpenChange={(open) => !open && handleTutorialClose()}>
+        <DialogContent
+          className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+          overlayClassName="bg-black/80 backdrop-blur-sm"
+          showCloseButton={true}
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Tutorial de Configuração</DialogTitle>
+            <DialogDescription>Guia passo a passo para configurar o WhatsApp Business</DialogDescription>
+          </DialogHeader>
 
-  // O step atual é o forceStep (se fornecido) ou o do localStorage
-  const currentStep = forceStep || progress.currentStep;
+          <TutorialWizard initialStep={forceStep} onClose={handleTutorialClose} />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
-  // Steps que podem aparecer mesmo após conectado (fluxo pós-credenciais)
-  const postConnectionSteps: OnboardingStep[] = [
-    'configure-webhook',
-    'sync-templates',
-    'send-first-message',
-    'create-permanent-token',
-    'complete',
-  ];
-  const isPostConnectionStep = postConnectionSteps.includes(currentStep);
+  // ============================================================================
+  // MODO ONBOARDING NORMAL: Fluxo completo com navegação
+  // ============================================================================
+  const currentStep = progress.currentStep;
 
-  // Onboarding foi finalizado (usuário clicou em "Começar a usar")
+  // Onboarding foi finalizado
   const isFullyComplete = progress.completedAt !== null;
 
-  // Mostrar modal se:
-  // 1. Fluxo inicial: não completou E não está conectado
-  // 2. Steps pós-conexão: mesmo após "completar" o wizard, permitir reabrir esses steps
-  //    (ex: usuário clicou "Configurar webhook" no checklist)
-  // IMPORTANTE: usa progress.currentStep para verificar se deve fechar (não currentStep que pode vir do forceStep)
-  const shouldShow = isLoaded && (
-    (!isFullyComplete && shouldShowOnboardingModal && !isConnected) || // Fluxo inicial
-    (isPostConnectionStep && progress.currentStep !== 'complete') // Pós-conexão (fecha quando progress.currentStep === 'complete')
-  );
+  // Mostrar modal apenas no fluxo inicial de onboarding
+  const shouldShow = isLoaded && !isFullyComplete && shouldShowOnboardingModal && !isConnected;
 
   // Estado temporário para credenciais durante o wizard
   const [credentials, setCredentials] = React.useState({
@@ -182,12 +340,14 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
               // Fecha o modal
               completeOnboarding();
               goToStep('complete');
+              onClose?.();
             }}
             onBack={async () => {
               // Se voltar, ainda marca como completo (webhook é opcional)
               await onMarkComplete();
               completeOnboarding();
               goToStep('complete');
+              onClose?.();
             }}
             stepNumber={6}
             totalSteps={totalSteps}

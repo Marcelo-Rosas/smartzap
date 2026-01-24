@@ -258,6 +258,8 @@ export const useSettingsController = () => {
     mutationFn: settingsService.save,
     onSuccess: (data) => {
       queryClient.setQueryData(['settings'], data);
+      // Invalida allSettings para atualizar isConnected na UI
+      queryClient.invalidateQueries({ queryKey: ['allSettings'] });
       toast.success('Configuração salva com sucesso!');
     },
     onError: () => {
@@ -357,7 +359,7 @@ export const useSettingsController = () => {
       const response = await fetch('/api/meta/webhooks/subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callbackUrl }), // Passa a URL do frontend (ex: ngrok)
+        body: JSON.stringify({ callbackUrl }), // Passa a URL do frontend (ex: URL de túnel em dev)
       });
 
       const data = await response.json().catch(() => ({}));
@@ -496,11 +498,15 @@ export const useSettingsController = () => {
         verifiedName: metaData.verified_name
       };
 
-      // 4. Save
-      saveMutation.mutate(finalSettings);
+      // 4. Save (usando mutateAsync para aguardar conclusão)
+      await saveMutation.mutateAsync(finalSettings);
+
+      // 5. Atualiza estado local para refletir conexão
+      setFormSettings(finalSettings);
     } catch (error) {
       toast.error('Erro ao conectar com a Meta API. Verifique as credenciais.');
       console.error(error);
+      throw error; // Re-throw para o caller saber que falhou
     }
   };
 
@@ -642,7 +648,7 @@ export const useSettingsController = () => {
       {
         id: 'qstash',
         title: 'QStash (Upstash)',
-        description: 'Filas de mensagens para processamento assíncrono de campanhas. Configure pelo assistente (/install/start).',
+        description: 'Filas de mensagens para processamento assíncrono de campanhas. Configure pelo assistente (/install).',
         status: health?.services.qstash?.status === 'ok'
           ? 'configured'
           : health?.services.qstash?.status === 'error'
@@ -650,7 +656,7 @@ export const useSettingsController = () => {
             : 'pending',
         icon: React.createElement(Zap, { size: 20, className: 'text-purple-400' }),
         actionLabel: 'Abrir assistente',
-        actionUrl: '/install/start',
+        actionUrl: '/install',
         errorMessage: health?.services.qstash?.message,
         isRequired: true,
       },

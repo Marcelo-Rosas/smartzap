@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -10,413 +9,64 @@ import {
     MessageSquare,
     Users,
     Settings,
-    Plus,
-    LogOut,
     Menu,
-    X,
     Bell,
-    Zap,
-    ChevronLeft,
-    ChevronRight,
     FileText,
-    ClipboardList,
-    AlertTriangle,
-    CheckCircle2,
-    RefreshCw,
-    Database,
     MessageCircle,
     Sparkles,
-    ExternalLink,
-    Workflow
+    Workflow,
+    HelpCircle,
+    Webhook,
+    Key,
+    BookOpen,
+    CheckSquare,
+    AppWindow,
+    Phone,
+    KeyRound,
+    TestTube,
+    RefreshCw,
+    Send,
 } from 'lucide-react'
 import React from 'react'
 import { HealthStatus } from '@/lib/health-check'
 import { getPageWidthClass, PageLayoutProvider, usePageLayout } from '@/components/providers/PageLayoutProvider'
-import { campaignService, contactService, templateService, settingsService } from '@/services'
+import { campaignService } from '@/services/campaignService'
+import { contactService } from '@/services/contactService'
+import { templateService } from '@/services/templateService'
+import { settingsService } from '@/services/settingsService'
 import { dashboardService } from '@/services/dashboardService'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
-
-// Setup step interface
-interface SetupStep {
-    id: 'database' | 'qstash' | 'whatsapp'
-    title: string
-    description: string
-    status: 'pending' | 'configured' | 'error'
-    icon: React.ReactNode
-    actionLabel?: string
-    actionUrl?: string
-    errorMessage?: string
-    isRequired: boolean
-    instructions: string[]
-    helpUrl?: string
-}
-
-// Onboarding Overlay Component
-const OnboardingOverlay = ({
-    health,
-    isLoading,
-    onRefresh
-}: {
-    health: HealthStatus | null
-    isLoading: boolean
-    onRefresh: () => void
-}) => {
-    // Build setup steps from health status
-    const steps: SetupStep[] = [
-        {
-            id: 'database',
-            title: 'Supabase Database',
-            description: 'Banco de dados PostgreSQL',
-            status: health?.services.database?.status === 'ok'
-                ? 'configured'
-                : health?.services.database?.status === 'error'
-                    ? 'error'
-                    : 'pending',
-            icon: React.createElement(Database, { size: 20, className: 'text-emerald-600 dark:text-emerald-400' }),
-            actionLabel: 'Abrir Assistente de Configuração',
-            actionUrl: '/install/start',
-            errorMessage: health?.services.database?.message,
-            isRequired: true,
-            instructions: [
-                'Detectamos que o banco de dados não está conectado.',
-                'Utilize nosso assistente para configurar automaticamente.',
-                'Você poderá usar a Connection String ou chaves manuais.',
-            ],
-        },
-
-        {
-            id: 'qstash',
-            title: 'QStash (Upstash)',
-            description: 'Filas de processamento',
-            status: health?.services.qstash.status === 'ok'
-                ? 'configured'
-                : health?.services.qstash.status === 'error'
-                    ? 'error'
-                    : 'pending',
-            icon: React.createElement(Zap, { size: 20, className: 'text-purple-600 dark:text-purple-400' }),
-            actionLabel: 'Configurar no Assistente',
-            actionUrl: '/install/start',
-            errorMessage: health?.services.qstash.message,
-            isRequired: true,
-            instructions: [
-                'QStash gerencia as filas de background.',
-                'Configure facilmente através do assistente.',
-            ],
-            helpUrl: 'https://upstash.com/docs/qstash/overall/getstarted',
-        },
-        {
-            id: 'whatsapp',
-            title: 'WhatsApp Business',
-            description: 'Credenciais da Meta',
-            status: health?.services.whatsapp.status === 'ok'
-                ? 'configured'
-                : health?.services.whatsapp.status === 'error'
-                    ? 'error'
-                    : 'pending',
-            icon: React.createElement(MessageCircle, { size: 20, className: 'text-green-600 dark:text-green-400' }),
-            errorMessage: health?.services.whatsapp.message,
-            isRequired: true,
-            actionLabel: 'Configurar WhatsApp',
-            actionUrl: '/install/start',
-            instructions: [
-                'Configure as credenciais do WhatsApp Business.',
-                'Use o assistente para validar o token.',
-            ],
-            helpUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api/get-started',
-        },
-    ]
-
-    const completedSteps = steps.filter(s => s.status === 'configured').length
-    const progressPercent = (completedSteps / steps.length) * 100
-    const infrastructureReady = steps
-        .filter(s => s.id === 'database' || s.id === 'qstash')
-        .every(s => s.status === 'configured')
-
-    return (
-        <div className="min-h-screen bg-grid-dots flex items-center justify-center p-6">
-            <div className="max-w-2xl w-full">
-                {/* Header */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-linear-to-br from-primary-500 to-emerald-600 mb-6 shadow-lg shadow-primary-500/20">
-                        <Sparkles size={40} className="text-white" />
-                    </div>
-                    <h1 className="text-4xl font-bold text-[var(--ds-text-primary)] tracking-tight mb-3">
-                        Configuração Necessária
-                    </h1>
-                    <p className="text-[var(--ds-text-secondary)] text-lg max-w-md mx-auto mb-6">
-                        Para utilizar o sistema, precisamos configurar os serviços essenciais. Utilize nosso assistente para facilitar o processo.
-                    </p>
-                    <a
-                        href="/install/start"
-                        className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-primary-500/25"
-                    >
-                        <Sparkles size={18} />
-                        Iniciar Assistente de Instalação
-                    </a>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-[var(--ds-text-secondary)]">
-                            Progresso: {completedSteps}/{steps.length} configurados
-                        </span>
-                        <button
-                            onClick={onRefresh}
-                            disabled={isLoading}
-                            className="flex items-center gap-1 text-[var(--ds-text-secondary)] hover:text-[var(--ds-text-primary)] transition-colors"
-                        >
-                            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                            Verificar novamente
-                        </button>
-                    </div>
-                    <div className="h-2 bg-[var(--ds-bg-surface)] rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-linear-to-r from-primary-500 to-emerald-500 transition-all duration-500"
-                            style={{ width: `${progressPercent}%` }}
-                        />
-                    </div>
-
-                    {/* Redeploy warning */}
-                    {completedSteps === 0 && (
-                        <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                            <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
-                                💡 <strong>Importante:</strong> Após configurar QStash, faça um <strong>redeploy</strong> para ativar as variáveis.
-                            </p>
-                            <div className="flex gap-2">
-                                {health?.vercel?.dashboardUrl && (
-                                    <a
-                                        href={`${health.vercel.dashboardUrl}/deployments`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 rounded-lg transition-colors"
-                                    >
-                                        Abrir Deployments →
-                                    </a>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Steps */}
-                <div className="space-y-4">
-                    {
-                        steps.map((step, index) => {
-                            const isPending = step.status === 'pending'
-                            const isConfigured = step.status === 'configured'
-                            const isError = step.status === 'error'
-
-                            const previousStepsConfigured = steps
-                                .slice(0, index)
-                                .filter(s => s.isRequired)
-                                .every(s => s.status === 'configured')
-                            const isNextStep = isPending && previousStepsConfigured
-
-                            return (
-                                <div
-                                    key={step.id}
-                                    className={`relative rounded-2xl border transition-all duration-300 overflow-hidden ${isConfigured
-                                        ? 'bg-emerald-500/5 border-emerald-500/30'
-                                        : isError
-                                            ? 'bg-red-500/5 border-red-500/30'
-                                            : isNextStep
-                                                ? 'bg-primary-500/5 border-primary-500/30 ring-2 ring-primary-500/20'
-                                                : 'bg-[var(--ds-bg-elevated)] border-[var(--ds-border-default)] opacity-60'
-                                        }`}
-                                >
-                                    {/* Step number badge */}
-                                    <div className={`absolute top-4 left-4 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isConfigured
-                                        ? 'bg-emerald-500 text-white'
-                                        : isError
-                                            ? 'bg-red-500 text-white'
-                                            : isNextStep
-                                                ? 'bg-primary-500 text-white'
-                                                : 'bg-[var(--ds-bg-surface)] text-[var(--ds-text-secondary)]'
-                                        }`}>
-                                        {isConfigured ? <CheckCircle2 size={16} /> : index + 1}
-                                    </div>
-
-                                    <div className="pl-16 pr-6 py-5">
-                                        {/* Header */}
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className={`font-semibold ${isConfigured ? 'text-emerald-600 dark:text-emerald-400' : isError ? 'text-red-600 dark:text-red-400' : 'text-[var(--ds-text-primary)]'
-                                                    }`}>
-                                                    {step.title}
-                                                </h3>
-                                                {step.isRequired && !isConfigured && (
-                                                    <span className="px-1.5 py-0.5 bg-[var(--ds-bg-hover)] text-[var(--ds-text-secondary)] text-[10px] font-medium rounded">
-                                                        OBRIGATÓRIO
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {isConfigured && (
-                                                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                                                    {step.icon}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <p className="text-sm text-[var(--ds-text-secondary)]">
-                                            {step.description}
-                                        </p>
-
-                                        {isError && step.errorMessage && (
-                                            <div className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-3">
-                                                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                                                <span>{step.errorMessage}</span>
-                                            </div>
-                                        )}
-
-                                        {isConfigured && (
-                                            <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 mt-3">
-                                                <CheckCircle2 size={14} />
-                                                <span>Configurado</span>
-                                            </div>
-                                        )}
-
-                                        {/* Instructions + Action - TOGETHER */}
-                                        {isNextStep && step.instructions.length > 0 && (
-                                            <div className="mt-4 bg-[var(--ds-bg-surface)] rounded-xl p-4 border border-[var(--ds-border-subtle)]">
-                                                <ol className="space-y-2 mb-4">
-                                                    {step.instructions.map((instruction, i) => (
-                                                        <li
-                                                            key={i}
-                                                            className="flex items-center gap-3 text-sm text-[var(--ds-text-secondary)]"
-                                                        >
-                                                            <span className="shrink-0 w-5 h-5 rounded-full bg-primary-500/20 text-primary-600 dark:text-primary-400 flex items-center justify-center text-xs font-bold">
-                                                                {i + 1}
-                                                            </span>
-                                                            <span>{instruction}</span>
-                                                        </li>
-                                                    ))}
-                                                </ol>
-
-                                                {/* Action button INSIDE the instructions box */}
-                                                {step.actionUrl && (
-                                                    <a
-                                                        href={step.actionUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm bg-primary-500 hover:bg-primary-400 text-white transition-all"
-                                                    >
-                                                        {step.actionLabel}
-                                                        <ExternalLink size={14} />
-                                                    </a>
-                                                )}
-
-                                                {step.helpUrl && (
-                                                    <a
-                                                        href={step.helpUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-[var(--ds-text-muted)] hover:text-[var(--ds-text-secondary)] transition-colors"
-                                                    >
-                                                        <span>Precisa de ajuda? Ver documentação</span>
-                                                    </a>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {index < steps.length - 1 && (
-                                        <div className="absolute -bottom-4 left-7 z-10">
-                                            <div className={`w-0.5 h-8 ${isConfigured ? 'bg-emerald-500/30' : 'bg-[var(--ds-bg-surface)]'}`} />
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })
-                    }
-                </div >
-
-                {/* Bottom message */}
-                {
-                    infrastructureReady && steps.find(s => s.id === 'whatsapp')?.status !== 'configured' && (
-                        <div className="mt-8 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                            <div className="flex items-start gap-3">
-                                <div className="p-2 bg-amber-500/20 rounded-lg">
-                                    <MessageCircle size={20} className="text-amber-600 dark:text-amber-400" />
-                                </div>
-                                <div>
-                                    <h4 className="font-medium text-amber-700 dark:text-amber-300 mb-1">
-                                        Infraestrutura pronta!
-                                    </h4>
-                                    <p className="text-sm text-amber-700/70 dark:text-amber-200/70">
-                                        QStash está configurado. Agora adicione suas credenciais do WhatsApp
-                                        na página de configurações.
-                                    </p>
-                                    <Link
-                                        href="/settings"
-                                        prefetch={false}
-                                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-medium rounded-lg transition-colors"
-                                    >
-                                        Configurar WhatsApp
-                                        <ChevronRight size={16} />
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
-
-                {
-                    !infrastructureReady && (
-                        <div className="mt-8 p-4 bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl text-center">
-                            <p className="text-[var(--ds-text-secondary)] text-sm">
-                                Complete os passos acima na ordem para liberar o acesso ao sistema.
-                            </p>
-                            <p className="text-[var(--ds-text-muted)] text-xs mt-2">
-                                Após configurar cada serviço no Vercel, clique em "Verificar novamente".
-                            </p>
-                        </div>
-                    )
-                }
-
-                {/* Help links */}
-                <div className="mt-8 pt-6 border-t border-[var(--ds-border-subtle)]">
-                    <h4 className="text-sm font-medium text-[var(--ds-text-secondary)] mb-3">Precisa de ajuda?</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                        <a
-                            href="https://vercel.com/docs/storage/upstash"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-3 bg-[var(--ds-bg-surface)] hover:bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl text-sm text-[var(--ds-text-secondary)] transition-colors"
-                        >
-                            <Database size={16} className="text-red-600 dark:text-red-400" />
-                            Docs: Upstash no Vercel
-                            <ExternalLink size={12} className="text-[var(--ds-text-muted)] ml-auto" />
-                        </a>
-                        <a
-                            href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-3 bg-[var(--ds-bg-surface)] hover:bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl text-sm text-[var(--ds-text-secondary)] transition-colors"
-                        >
-                            <MessageCircle size={16} className="text-green-600 dark:text-green-400" />
-                            Docs: WhatsApp Cloud API
-                            <ExternalLink size={12} className="text-[var(--ds-text-muted)] ml-auto" />
-                        </a>
-                    </div>
-                </div>
-            </div >
-        </div >
-    )
-}
-
 import { PrefetchLink } from '@/components/ui/PrefetchLink'
 import { AccountAlertBanner } from '@/components/ui/AccountAlertBanner'
 import { DashboardSidebar, type NavItem } from '@/components/layout/DashboardSidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { DevModeToggle } from '@/components/ui/dev-mode-toggle'
 import { useDevMode } from '@/components/providers/DevModeProvider'
 import {
     OnboardingModal,
     OnboardingChecklist,
     ChecklistMiniBadge,
+    OnboardingOverlay,
     useOnboardingProgress,
+    type OnboardingStep,
 } from '@/components/features/onboarding'
+import {
+    EmptyStateBanner,
+    SuccessBanner,
+    CredentialsModal,
+    SetupChecklist,
+    GuidedTour,
+    useGuidedTour,
+} from '@/components/features/setup'
+import { useSetupStatus } from '@/hooks/useSetupStatus'
 
 export function DashboardShell({
     children,
@@ -466,8 +116,21 @@ export function DashboardShell({
         completeOnboarding,
     } = useOnboardingProgress()
 
+    // Estado para forçar abertura do modal em um step específico (ex: vindo do checklist)
+    const [forceModalStep, setForceModalStep] = useState<OnboardingStep | undefined>()
+
+    // Estado para o novo modal de credenciais simplificado
+    const [showCredentialsModal, setShowCredentialsModal] = useState(false)
+
+    // Estado para mostrar banner de sucesso após conexão
+    const [showSuccessBanner, setShowSuccessBanner] = useState(false)
+
+    // Estado para mostrar tour guiado após primeira conexão
+    const [showGuidedTour, setShowGuidedTour] = useState(false)
+    const guidedTour = useGuidedTour()
+
     // Onboarding status from database (fonte da verdade)
-    const { data: onboardingDbStatus, refetch: refetchOnboardingStatus } = useQuery({
+    const { data: onboardingDbStatus, refetch: refetchOnboardingStatus, isLoading: isOnboardingStatusLoading } = useQuery({
         queryKey: ['onboardingStatus'],
         queryFn: async () => {
             const response = await fetch('/api/settings/onboarding')
@@ -497,7 +160,7 @@ export function DashboardShell({
     const companyName = authStatus?.company?.name || initialAuthStatus?.company?.name
 
     // Logout handler
-    const handleLogout = async () => {
+    const handleLogout = useCallback(async () => {
         setIsLoggingOut(true)
         try {
             await fetch('/api/auth/logout', { method: 'POST' })
@@ -508,7 +171,7 @@ export function DashboardShell({
         } finally {
             setIsLoggingOut(false)
         }
-    }
+    }, [router])
 
     // Prefetch data on hover for faster page loads
     const prefetchRoute = useCallback((path: string) => {
@@ -566,16 +229,23 @@ export function DashboardShell({
     }, [queryClient])
 
     // Health check query for onboarding
+    // IMPORTANTE: Não dar throw em erro para evitar race condition que desmonta componentes
     const { data: healthStatus, refetch: refetchHealth, isFetching: isHealthFetching } = useQuery<HealthStatus>({
         queryKey: ['healthStatus'],
         queryFn: async () => {
             const response = await fetch('/api/health')
-            if (!response.ok) throw new Error('Failed to fetch health')
+            if (!response.ok) {
+                console.warn('[Health] Request failed with status:', response.status)
+                // Não lançar erro - retorna null e mantém dados anteriores via staleTime
+                return null as unknown as HealthStatus
+            }
             return response.json()
         },
         initialData: initialHealthStatus ?? undefined,
         staleTime: 5 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
+        retry: 1, // Só tenta 1 vez extra em caso de falha
+        retryDelay: 1000,
         refetchInterval: (query) => {
             const data = query.state.data
             const isSetupComplete = data &&
@@ -597,6 +267,9 @@ export function DashboardShell({
 
     // Determina se precisa configurar webhook (WhatsApp conectado mas webhook não)
     const needsWebhookSetup = isWhatsAppConnected && !isWebhookConfigured && healthStatus !== undefined
+
+    // Hook do novo sistema de setup (Dashboard-First)
+    const setupStatus = useSetupStatus(healthStatus ?? null)
 
     // Handler para salvar credenciais (NÃO marca como completo - o usuário ainda precisa configurar webhook)
     const handleSaveCredentials = useCallback(async (credentials: {
@@ -638,6 +311,29 @@ export function DashboardShell({
         }
     }, [completeOnboarding, refetchOnboardingStatus])
 
+    // Handler para quando credenciais são conectadas com sucesso (novo fluxo Dashboard-First)
+    const handleCredentialsSuccess = useCallback(() => {
+        setShowSuccessBanner(true)
+        refetchHealth()
+        queryClient.invalidateQueries({ queryKey: ['settings'] })
+        // Marca onboarding como completo automaticamente no novo fluxo
+        handleMarkOnboardingComplete()
+        // Inicia tour guiado se for a primeira vez
+        if (guidedTour.shouldShow) {
+            // Pequeno delay para o banner de sucesso aparecer primeiro
+            setTimeout(() => {
+                setShowSuccessBanner(false)
+                setShowGuidedTour(true)
+            }, 2000)
+        }
+    }, [refetchHealth, queryClient, handleMarkOnboardingComplete, guidedTour.shouldShow])
+
+    // Handler para abrir tutorial de como obter credenciais
+    const handleHelpClick = useCallback(() => {
+        setShowCredentialsModal(false)
+        setForceModalStep('requirements')
+    }, [])
+
     // Sidebar callback - DEVE estar antes de qualquer early return
     const handleCloseMobileMenu = useCallback(() => setIsMobileMenuOpen(false), [])
 
@@ -646,14 +342,14 @@ export function DashboardShell({
     const navItems = useMemo(() => [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/campaigns', label: 'Campanhas', icon: MessageSquare },
-        { path: '/inbox', label: 'Inbox', icon: MessageCircle, badge: unreadCount > 0 ? String(unreadCount > 99 ? '99+' : unreadCount) : undefined },
+        { path: '/inbox', label: 'Inbox', icon: MessageCircle }, // Badge dinâmico renderizado no DashboardSidebar
         { path: '/workflows', label: 'Workflow', icon: Workflow, badge: 'beta', disabled: true, hidden: !isDevMode },
         { path: '/conversations', label: 'Conversas', icon: MessageCircle, hidden: true },
         { path: '/templates', label: 'Templates', icon: FileText },
         { path: '/contacts', label: 'Contatos', icon: Users },
         { path: '/settings/ai', label: 'IA', icon: Sparkles },
         { path: '/settings', label: 'Configurações', icon: Settings },
-    ].filter(item => !item.hidden), [unreadCount, isDevMode])
+    ].filter(item => !item.hidden), [isDevMode])
 
     const getPageTitle = (path: string) => {
         if (path === '/') return 'Dashboard'
@@ -691,7 +387,8 @@ export function DashboardShell({
 
     // Determina se deve mostrar o modal de onboarding do WhatsApp
     // Mostra quando: infra OK E onboarding não marcado como completo no banco
-    const showWhatsAppOnboarding = !needsSetup && !isOnboardingCompletedInDb
+    // Só mostra modal de onboarding após carregar status do banco (evita flash)
+    const showWhatsAppOnboarding = !needsSetup && !isOnboardingStatusLoading && !isOnboardingCompletedInDb
 
     // Se WhatsApp já conectado mas onboarding não completo, força ir para step de webhook
     const onboardingForceStep = isWhatsAppConnected && !isOnboardingCompletedInDb
@@ -701,8 +398,8 @@ export function DashboardShell({
     const isBuilderRoute = pathname?.startsWith('/builder') ?? false
     const isInboxRoute = pathname?.startsWith('/inbox') ?? false
 
-    // Sidebar component props
-    const sidebarProps = {
+    // Sidebar component props - memoized to prevent DashboardSidebar re-renders
+    const sidebarProps = useMemo(() => ({
         pathname,
         navItems: navItems as NavItem[],
         isSidebarExpanded,
@@ -713,7 +410,18 @@ export function DashboardShell({
         onCloseMobileMenu: handleCloseMobileMenu,
         onLogout: handleLogout,
         onPrefetchRoute: prefetchRoute,
-    }
+    }), [
+        pathname,
+        navItems,
+        isSidebarExpanded,
+        isMobileMenuOpen,
+        isLoggingOut,
+        companyName,
+        updateSidebarExpanded,
+        handleCloseMobileMenu,
+        handleLogout,
+        prefetchRoute,
+    ])
 
     if (isBuilderRoute) {
         return (
@@ -844,6 +552,94 @@ export function DashboardShell({
 
                     <div className="flex items-center gap-3">
                         <ChecklistMiniBadge isOnboardingCompletedInDb={isOnboardingCompletedInDb} />
+
+                        {/* Botão de Ajuda */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    className="p-1.5 text-[var(--ds-text-muted)] hover:text-[var(--ds-text-primary)] hover:bg-[var(--ds-bg-subtle)] rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+                                    aria-label="Ajuda"
+                                >
+                                    <HelpCircle size={20} />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-64">
+                                <DropdownMenuLabel>Tutoriais de Configuração</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('requirements')}
+                                    className="cursor-pointer"
+                                >
+                                    <CheckSquare className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">1.</span> Requisitos
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('create-app')}
+                                    className="cursor-pointer"
+                                >
+                                    <AppWindow className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">2.</span> Criar App Meta
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('add-whatsapp')}
+                                    className="cursor-pointer"
+                                >
+                                    <Phone className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">3.</span> Adicionar WhatsApp
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('credentials')}
+                                    className="cursor-pointer"
+                                >
+                                    <KeyRound className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">4.</span> Copiar Credenciais
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('test-connection')}
+                                    className="cursor-pointer"
+                                >
+                                    <TestTube className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">5.</span> Testar Conexão
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('configure-webhook')}
+                                    className="cursor-pointer"
+                                >
+                                    <Webhook className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">6.</span> Configurar Webhook
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('sync-templates')}
+                                    className="cursor-pointer"
+                                >
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">7.</span> Sincronizar Templates
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('send-first-message')}
+                                    className="cursor-pointer"
+                                >
+                                    <Send className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">8.</span> Enviar Mensagem Teste
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setForceModalStep('create-permanent-token')}
+                                    className="cursor-pointer"
+                                >
+                                    <Key className="mr-2 h-4 w-4" />
+                                    <span className="text-zinc-500 mr-2">9.</span> Token Permanente
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onClick={() => window.open('https://developers.facebook.com/docs/whatsapp/cloud-api', '_blank')}
+                                    className="cursor-pointer"
+                                >
+                                    <BookOpen className="mr-2 h-4 w-4" />
+                                    Documentação Meta
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <ThemeToggle compact />
                         <DevModeToggle />
                         <button className="relative group focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 rounded-md p-1" aria-label="Notificações (1 nova)">
@@ -863,15 +659,96 @@ export function DashboardShell({
                     />
                 )}
 
+                {/* Modal de Tutorial (menu de ajuda) */}
+                {forceModalStep && (
+                    <OnboardingModal
+                        isConnected={!!isWhatsAppConnected}
+                        onSaveCredentials={handleSaveCredentials}
+                        onMarkComplete={handleMarkOnboardingComplete}
+                        forceStep={forceModalStep}
+                        onClose={() => setForceModalStep(undefined)}
+                        tutorialMode={true}
+                    />
+                )}
+
+                {/* NOVO: Modal de credenciais simplificado (Dashboard-First) */}
+                <CredentialsModal
+                    open={showCredentialsModal}
+                    onOpenChange={setShowCredentialsModal}
+                    onSuccess={handleCredentialsSuccess}
+                    onHelpClick={handleHelpClick}
+                />
+
+                {/* NOVO: Tour guiado pós-conexão (Dashboard-First) */}
+                {showGuidedTour && (
+                    <GuidedTour
+                        onComplete={() => {
+                            setShowGuidedTour(false)
+                            guidedTour.markAsCompleted()
+                        }}
+                        onSkip={() => {
+                            setShowGuidedTour(false)
+                            guidedTour.markAsCompleted()
+                        }}
+                    />
+                )}
+
                 {/* Page Content */}
                 <PageContentShell>
-                    {/* Onboarding Checklist - aparece apenas na home do dashboard */}
-                    {/* Mostra se: onboarding completo (banco OU localStorage) E não dismissado E não minimizado */}
-                    {pathname === '/' && (isOnboardingCompletedInDb || shouldShowChecklist) && !onboardingProgress.isChecklistMinimized && !onboardingProgress.isChecklistDismissed && healthStatus && (
+                    {/* NOVO: EmptyStateBanner - mostra quando WhatsApp não conectado (Dashboard-First) */}
+                    {/* Guard: só mostra após health E onboarding status carregarem para evitar flash */}
+                    {pathname === '/' &&
+                     healthStatus !== undefined &&
+                     !isOnboardingStatusLoading &&
+                     !isWhatsAppConnected &&
+                     isOnboardingCompletedInDb && (
+                        <EmptyStateBanner
+                            onConnect={() => setShowCredentialsModal(true)}
+                            onHelp={() => setForceModalStep('requirements')}
+                        />
+                    )}
+
+                    {/* NOVO: SuccessBanner - mostra após conectar WhatsApp */}
+                    {pathname === '/' && showSuccessBanner && isWhatsAppConnected && (
+                        <SuccessBanner
+                            onSendTest={() => {
+                                setShowSuccessBanner(false)
+                                router.push('/campaigns/new')
+                            }}
+                        />
+                    )}
+
+                    {/* NOVO: SetupChecklist - lateral na homepage quando onboarding completo */}
+                    {/* Guard: só mostra após TODOS os loadings terminarem */}
+                    {pathname === '/' &&
+                     healthStatus !== undefined &&
+                     !isOnboardingStatusLoading &&
+                     !setupStatus.isLoading &&
+                     isOnboardingCompletedInDb &&
+                     isWhatsAppConnected &&
+                     !setupStatus.isAllComplete && (
+                        <div className="mb-6">
+                            <SetupChecklist
+                                isWhatsAppConnected={setupStatus.isWhatsAppConnected}
+                                isWebhookConfigured={setupStatus.isWebhookConfigured}
+                                hasSentFirstMessage={setupStatus.hasSentFirstMessage}
+                                isPermanentTokenConfirmed={setupStatus.isPermanentTokenConfirmed}
+                                onConnectWhatsApp={() => setShowCredentialsModal(true)}
+                                onSendTestMessage={() => router.push('/campaigns/new')}
+                                onConfigureWebhook={() => setForceModalStep('configure-webhook')}
+                                onCreatePermanentToken={() => setForceModalStep('create-permanent-token')}
+                            />
+                        </div>
+                    )}
+
+                    {/* Onboarding Checklist LEGADO - mantido para transição */}
+                    {/* Mostra se: onboarding completo (banco OU localStorage) E não dismissado E não minimizado E novo checklist não ativo */}
+                    {pathname === '/' && !isOnboardingCompletedInDb && (shouldShowChecklist) && !onboardingProgress.isChecklistMinimized && !onboardingProgress.isChecklistDismissed && healthStatus && (
                         <div className="mb-6">
                             <OnboardingChecklist
                                 healthStatus={healthStatus}
                                 onNavigate={(path) => router.push(path)}
+                                onOpenStep={setForceModalStep}
                             />
                         </div>
                     )}

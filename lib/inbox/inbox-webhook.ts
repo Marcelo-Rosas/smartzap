@@ -8,19 +8,24 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { normalizePhoneNumber } from '@/lib/phone-formatter'
-import { inboxDb } from './inbox-db'
-import {
-  scheduleWithDebounce,
-  cancelDebounce,
-  processChatAgent,
-} from '@/lib/ai/agents/chat-agent'
+import { inboxDb, isHumanModeExpired, switchToBotMode } from './inbox-db'
+import { cancelDebounce } from '@/lib/ai/agents/chat-agent'
 import { sendWhatsAppMessage } from '@/lib/whatsapp-send'
+import { Client } from '@upstash/qstash'
 import type {
-  ConversationMode,
   InboxConversation,
   InboxMessage,
-  AIAgent,
 } from '@/types'
+
+// QStash client para disparar processamento de IA (simplificado)
+const getQStashClient = () => {
+  const token = process.env.QSTASH_TOKEN
+  if (!token) {
+    console.warn('[Inbox] QSTASH_TOKEN não configurado, AI processing não disponível')
+    return null
+  }
+  return new Client({ token })
+}
 
 // =============================================================================
 // Types
@@ -106,15 +111,32 @@ export async function handleInboundMessage(
 
   // 3. Trigger AI processing if mode is 'bot' and automation is not paused (T066)
   let triggeredAI = false
-  if (conversation.mode === 'bot') {
+  let currentMode = conversation.mode
+
+  // Check if human mode has expired → auto-switch back to bot
+  if (currentMode === 'human' && isHumanModeExpired(conversation.human_mode_expires_at)) {
+    console.log(
+      `[Inbox] Human mode expired for ${conversation.id}, auto-switching to bot mode`
+    )
+    await switchToBotMode(conversation.id)
+    currentMode = 'bot'
+  }
+
+  console.log(`🤖 [INBOX] Checking AI trigger: mode=${currentMode}, automationPausedUntil=${conversation.automation_paused_until}`)
+
+  if (currentMode === 'bot') {
     // T066: Check if automation is paused
     if (isAutomationPaused(conversation.automation_paused_until)) {
       console.log(
         `[Inbox] Automation paused until ${conversation.automation_paused_until}, skipping AI processing`
       )
     } else {
+      console.log(`🤖 [INBOX] Calling triggerAIProcessing for conversation ${conversation.id}`)
       triggeredAI = await triggerAIProcessing(conversation, message)
+      console.log(`🤖 [INBOX] triggerAIProcessing returned: ${triggeredAI}`)
     }
+  } else {
+    console.log(`🤖 [INBOX] Skipping AI trigger because mode=${currentMode}`)
   }
 
   return {
@@ -125,151 +147,56 @@ export async function handleInboundMessage(
 }
 
 // =============================================================================
-// AI Processing Trigger (T047)
+// AI Processing Trigger (T047) - Via QStash (Simplificado)
 // =============================================================================
 
 /**
- * Trigger AI agent processing with debounce
- * Uses scheduleWithDebounce to wait for message bursts
+ * Trigger AI agent processing via QStash
+ *
+ * Versão simplificada: dispara diretamente para /api/ai/respond
+ * Sem workflow durável, sem Redis, sem complexidade.
+ *
+ * O endpoint /api/ai/respond tem maxDuration=300 (5 min) via Fluid Compute,
+ * suficiente para processar qualquer resposta de IA.
  */
 async function triggerAIProcessing(
   conversation: InboxConversation,
-  message: InboxMessage
+  _message: InboxMessage
 ): Promise<boolean> {
-  // Get the AI agent assigned to this conversation (or default)
-  const agent = await getAIAgentForConversation(conversation.id)
-  if (!agent) {
-    console.log('[Inbox] No AI agent configured, skipping AI processing')
+  const conversationId = conversation.id
+  console.log(`🔥 [TRIGGER] Starting AI processing for ${conversationId}`)
+
+  const qstash = getQStashClient()
+
+  if (!qstash) {
+    console.log('[Inbox] QStash client not available, skipping AI processing')
     return false
   }
 
-  // Check if agent is active
-  if (!agent.is_active) {
-    console.log('[Inbox] AI agent is not active, skipping')
+  // URL do endpoint simplificado
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL &&
+      `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`) ||
+    (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+    'http://localhost:3000'
+
+  const aiRespondUrl = `${baseUrl}/api/ai/respond`
+
+  console.log(`🔥 [TRIGGER] Dispatching to ${aiRespondUrl}`)
+
+  try {
+    await qstash.publishJSON({
+      url: aiRespondUrl,
+      body: { conversationId },
+      retries: 2,
+    })
+
+    console.log(`✅ [TRIGGER] AI processing dispatched for ${conversationId}`)
+    return true
+  } catch (error) {
+    console.error('❌ [TRIGGER] Failed to dispatch AI processing:', error)
     return false
-  }
-
-  // Schedule with debounce (default 5s = 5000ms)
-  const debounceMs = agent.debounce_ms || 5000
-  const debounceSec = debounceMs / 1000
-
-  console.log(
-    `[Inbox] Scheduling AI response for conversation ${conversation.id} with ${debounceSec}s debounce`
-  )
-
-  // Don't await - let it run in background
-  scheduleWithDebounce(conversation.id, message.id, debounceSec).then(
-    async (accumulatedMessageIds) => {
-      try {
-        await processAIResponse(conversation, agent, accumulatedMessageIds)
-      } catch (error) {
-        console.error('[Inbox] AI processing failed:', error)
-      }
-    }
-  )
-
-  return true
-}
-
-/**
- * Process AI response after debounce
- * IMPORTANT: This runs in BACKGROUND after debounce, so we must NOT use
- * createClient() which calls cookies() - it hangs outside request context.
- * Use getSupabaseAdmin() or inboxDb (which uses admin internally) instead.
- */
-async function processAIResponse(
-  conversation: InboxConversation,
-  agent: AIAgent,
-  messageIds: string[]
-): Promise<void> {
-  // Refresh conversation state (might have changed during debounce)
-  const currentConversation = await inboxDb.getConversation(conversation.id)
-  if (!currentConversation) {
-    console.log('[Inbox] Conversation deleted during debounce, aborting AI processing')
-    return
-  }
-
-  // Check if mode changed during debounce
-  if (currentConversation.mode !== 'bot') {
-    console.log('[Inbox] Conversation mode changed to human, aborting AI processing')
-    return
-  }
-
-  // T066: Check if automation was paused during debounce
-  if (isAutomationPaused(currentConversation.automation_paused_until)) {
-    console.log(
-      `[Inbox] Automation paused during debounce until ${currentConversation.automation_paused_until}, aborting AI processing`
-    )
-    return
-  }
-
-  // Get recent messages for context
-  const { messages } = await inboxDb.listMessages(conversation.id, { limit: 20 })
-
-  // Process with support agent V2 (AI SDK v6 patterns)
-  const result = await processChatAgent({
-    agent,
-    conversation: currentConversation,
-    messages,
-  })
-
-  if (result.success && result.response) {
-    // Send response via WhatsApp
-    const sendResult = await sendWhatsAppMessage({
-      to: conversation.phone,
-      type: 'text',
-      text: result.response.message,
-    })
-
-    if (sendResult.success && sendResult.messageId) {
-      // Create outbound message in inbox
-      await inboxDb.createMessage({
-        conversation_id: conversation.id,
-        direction: 'outbound',
-        content: result.response.message,
-        message_type: 'text',
-        whatsapp_message_id: sendResult.messageId,
-        delivery_status: 'sent',
-        ai_response_id: result.logId || null,
-        ai_sentiment: result.response.sentiment,
-        ai_sources: result.response.sources || null,
-      })
-    }
-
-    // Handle handoff if needed
-    if (result.response.shouldHandoff) {
-      await handleAIHandoff(
-        currentConversation,
-        result.response.handoffReason,
-        result.response.handoffSummary
-      )
-    }
-  } else if (result.response) {
-    // Error but we have a fallback response (auto-handoff)
-    const sendResult = await sendWhatsAppMessage({
-      to: conversation.phone,
-      type: 'text',
-      text: result.response.message,
-    })
-
-    if (sendResult.success && sendResult.messageId) {
-      await inboxDb.createMessage({
-        conversation_id: conversation.id,
-        direction: 'outbound',
-        content: result.response.message,
-        message_type: 'text',
-        whatsapp_message_id: sendResult.messageId,
-        delivery_status: 'sent',
-        ai_response_id: result.logId || null,
-      })
-    }
-
-    // Auto-handoff on error
-    await handleAIHandoff(
-      currentConversation,
-      result.response.handoffReason || result.error,
-      result.response.handoffSummary
-    )
   }
 }
 
@@ -387,72 +314,6 @@ async function findContactId(phone: string): Promise<string | null> {
     .single()
 
   return data?.id || null
-}
-
-/**
- * Check if AI agents are globally enabled
- * Returns true if enabled (default), false if disabled
- */
-async function isAIAgentsGloballyEnabled(): Promise<boolean> {
-  const supabase = getSupabaseAdmin()
-  if (!supabase) return true // Default to enabled if no supabase
-
-  const { data, error } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'ai_agents_global_enabled')
-    .single()
-
-  if (error || !data) return true // Default to enabled
-  return data.value !== 'false'
-}
-
-/**
- * Get AI agent for conversation
- * First checks global toggle, then conversation assignment, then default agent
- */
-async function getAIAgentForConversation(
-  conversationId: string
-): Promise<AIAgent | null> {
-  const supabase = getSupabaseAdmin()
-  if (!supabase) {
-    console.error('[Inbox] Supabase admin client not available')
-    return null
-  }
-
-  // Check global toggle first
-  const isEnabled = await isAIAgentsGloballyEnabled()
-  if (!isEnabled) {
-    console.log('[Inbox] AI agents globally disabled, skipping')
-    return null
-  }
-
-  // Check if conversation has an assigned agent
-  const { data: conversation } = await supabase
-    .from('inbox_conversations')
-    .select('ai_agent_id')
-    .eq('id', conversationId)
-    .single()
-
-  if (conversation?.ai_agent_id) {
-    const { data: agent } = await supabase
-      .from('ai_agents')
-      .select('*')
-      .eq('id', conversation.ai_agent_id)
-      .single()
-
-    return agent as AIAgent | null
-  }
-
-  // Fall back to default active agent
-  const { data: defaultAgent } = await supabase
-    .from('ai_agents')
-    .select('*')
-    .eq('is_active', true)
-    .eq('is_default', true)
-    .single()
-
-  return defaultAgent as AIAgent | null
 }
 
 /**

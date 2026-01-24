@@ -11,14 +11,14 @@ import {
 export const config = {
     matcher: [
         // Match all pages except static files and _next
-        // Includes: .json (manifest.json), .js (sw.js), common images, and Next.js internals
-        '/((?!_next/static|_next/image|favicon.ico|manifest\\.json|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+        // Includes: .json (manifest.json), .js (sw.js), common images/audio, and Next.js internals
+        '/((?!_next/static|_next/image|favicon.ico|manifest\\.json|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp3|wav|ogg|m4a)$).*)',
     ],
 }
 
 // Routes that don't require user authentication
 const PUBLIC_PAGES = ['/login', '/install', '/debug-auth', '/f', '/atendimento']
-const PUBLIC_API_ROUTES = ['/api/auth', '/api/webhook', '/api/health', '/api/system', '/api/installer', '/api/debug', '/api/database', '/api/campaign/workflow', '/api/account/alerts', '/api/public/lead-forms', '/api/builder', '/api/attendants', '/api/attendant', '/api/push', '/api/inbox']
+const PUBLIC_API_ROUTES = ['/api/auth', '/api/webhook', '/api/health', '/api/system', '/api/installer', '/api/debug', '/api/database', '/api/campaign/workflow', '/api/account/alerts', '/api/public/lead-forms', '/api/builder', '/api/attendants', '/api/attendant', '/api/push', '/api/inbox', '/api/ai']
 
 export async function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname
@@ -92,7 +92,7 @@ export async function proxy(request: NextRequest) {
     // If not configured and not already on install, redirect immediately
     if (!hasMasterPassword) {
         if (!pathname.startsWith('/install') && !pathname.startsWith('/api')) {
-            const installUrl = new URL('/install/start', request.url)
+            const installUrl = new URL('/install', request.url)
             return NextResponse.redirect(installUrl)
         }
     }

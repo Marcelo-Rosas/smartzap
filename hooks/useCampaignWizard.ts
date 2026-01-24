@@ -272,6 +272,16 @@ export const useCampaignWizardController = () => {
         toast.success('Campanha criada e agendada com sucesso!');
       } else {
         toast.success('Campanha criada e disparada com sucesso!');
+
+        // Para campanhas pequenas/médias, o envio pode terminar antes do Realtime conectar.
+        // Refetch automático após 2s para atualizar as stats.
+        if (campaign?.recipients && campaign.recipients < 2500) {
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['campaign', campaign.id] });
+            queryClient.invalidateQueries({ queryKey: ['campaignMessages', campaign.id] });
+            queryClient.invalidateQueries({ queryKey: ['campaignMetrics', campaign.id] });
+          }, 2000);
+        }
       }
     },
     onError: (_error, _input, context) => {

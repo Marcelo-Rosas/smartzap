@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { useOnboardingProgress } from './hooks/useOnboardingProgress';
+import { useOnboardingProgress, type OnboardingStep } from './hooks/useOnboardingProgress';
 import { cn } from '@/lib/utils';
 import type { HealthStatus } from '@/lib/health-check';
 import { toast } from 'sonner';
@@ -41,19 +41,21 @@ interface OnboardingChecklistProps {
   /** Token expira em X dias (null = permanente ou desconhecido) */
   tokenExpiresIn?: string | null;
   onNavigate?: (path: string) => void;
+  /** Callback para abrir o modal de onboarding em um step específico */
+  onOpenStep?: (step: OnboardingStep) => void;
 }
 
 export function OnboardingChecklist({
   healthStatus,
   tokenExpiresIn,
-  onNavigate
+  onNavigate,
+  onOpenStep,
 }: OnboardingChecklistProps) {
   const {
     progress,
     shouldShowChecklist,
     minimizeChecklist,
     dismissChecklist,
-    goToStep,
   } = useOnboardingProgress();
 
   const [showTokenDialog, setShowTokenDialog] = useState(false);
@@ -230,7 +232,7 @@ export function OnboardingChecklist({
                 onClick={() => {
                   // Webhook abre o wizard no step de configuração
                   if (item.id === 'webhook') {
-                    goToStep('configure-webhook');
+                    onOpenStep?.('configure-webhook');
                     return;
                   }
                   // Token permanente abre dialog de confirmação
