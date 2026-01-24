@@ -79,6 +79,7 @@ scripts/*
 # OS
 .DS_Store
 *.local
+nul
 
 # Vercel
 .vercel

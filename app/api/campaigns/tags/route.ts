@@ -11,12 +11,33 @@ const postSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#6B7280'),
 })
 
+function isMissingTableError(error: unknown, tableName: string): boolean {
+  const code = String((error as any)?.code || '')
+  const msg = String((error as any)?.message || (error instanceof Error ? error.message : error || ''))
+  const m = msg.toLowerCase()
+  const t = tableName.toLowerCase()
+
+  // Postgres undefined_table
+  if (code === '42P01') return true
+
+  // PostgREST / Supabase cache errors often include the table name.
+  if (m.includes('does not exist') && m.includes(t)) return true
+  if (m.includes('relation') && m.includes(t)) return true
+  if (m.includes('schema cache') && m.includes(t)) return true
+
+  return false
+}
+
 export async function GET() {
   try {
     const tags = await campaignTagDb.getAll()
     return NextResponse.json(tags)
   } catch (error) {
     console.error('[GET /api/campaigns/tags]', error)
+    if (isMissingTableError(error, 'campaign_tags')) {
+      console.warn('[GET /api/campaigns/tags] campaign_tags missing, returning empty list')
+      return NextResponse.json([])
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
