@@ -19,6 +19,7 @@
     "logs:follow:prod": "node scripts/vercel-logs-follow.mjs https://smartzap-eta.vercel.app tmp/vercel-logs-follow.jsonl",
     "monitor:all": "node scripts/monitor-all.mjs --vercel-url https://smartzap-eta.vercel.app --qstash-url https://smartzap-eta.vercel.app/api/campaign/workflow",
     "builder:smoke": "tsx scripts/builder-smoke.ts",
+    "deploy": "node scripts/vercel-deploy.mjs --prod",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

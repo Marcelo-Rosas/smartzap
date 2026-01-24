@@ -254,7 +254,10 @@ export const settingsService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials)
     });
-    if (!response.ok) throw new Error('Failed to fetch phone details');
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data?.error || 'Falha ao buscar detalhes do phone number')
+    }
     return response.json();
   },
 
