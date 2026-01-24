@@ -18,7 +18,17 @@ export const config = {
 
 // Routes that don't require user authentication
 const PUBLIC_PAGES = ['/login', '/install', '/debug-auth', '/f', '/atendimento']
-const PUBLIC_API_ROUTES = ['/api/auth', '/api/webhook', '/api/health', '/api/system', '/api/installer', '/api/debug', '/api/database', '/api/campaign/workflow', '/api/account/alerts', '/api/public/lead-forms', '/api/builder', '/api/attendants', '/api/attendant', '/api/push', '/api/inbox', '/api/ai']
+// Rotas que NÃO precisam de autenticação
+// CUIDADO: adicionar rotas aqui expõe elas publicamente!
+const PUBLIC_API_ROUTES = [
+    '/api/auth',              // Login/logout/status
+    '/api/webhook',           // Meta WhatsApp webhooks (usa HMAC)
+    '/api/health',            // Health checks
+    '/api/system',            // Info básica do sistema
+    '/api/installer',         // Setup inicial (protegido separadamente após install)
+    '/api/campaign/workflow', // Chamado internamente pelo QStash
+    '/api/public',            // Rotas explicitamente públicas (lead forms, etc)
+]
 
 export async function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname

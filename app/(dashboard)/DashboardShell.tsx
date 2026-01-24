@@ -213,7 +213,10 @@ export function DashboardShell({
     const { data: healthStatus, refetch: refetchHealth, isFetching: isHealthFetching } = useQuery<HealthStatus>({
         queryKey: ['healthStatus'],
         queryFn: async () => {
-            const response = await fetch('/api/health')
+            // Usa cache-busting para garantir dados frescos após invalidação
+            const response = await fetch('/api/health', {
+                cache: 'no-store', // Bypassa cache HTTP
+            })
             if (!response.ok) {
                 console.warn('[Health] Request failed with status:', response.status)
                 // Não lançar erro - retorna null e mantém dados anteriores via staleTime
@@ -310,7 +313,11 @@ export function DashboardShell({
         } catch (error) {
             console.error('Erro ao salvar status do onboarding no banco:', error)
         }
-    }, [completeOnboarding, refetchOnboardingStatus])
+
+        // Invalida e refaz health check para atualizar o status do WhatsApp
+        // Invalidar força o React Query a buscar dados novos em vez de usar cache
+        queryClient.invalidateQueries({ queryKey: ['healthStatus'] })
+    }, [completeOnboarding, refetchOnboardingStatus, queryClient])
 
     // Handler para quando credenciais são conectadas com sucesso (novo fluxo Dashboard-First)
     const handleCredentialsSuccess = useCallback(() => {
