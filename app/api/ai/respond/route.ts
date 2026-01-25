@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { inboxDb } from '@/lib/inbox/inbox-db'
-import { processChatAgent } from '@/lib/ai/agents/chat-agent'
+import { processChatAgent, type ContactContext } from '@/lib/ai/agents/chat-agent'
 import { sendWhatsAppMessage } from '@/lib/whatsapp-send'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import type { AIAgent } from '@/types'
@@ -101,13 +101,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ skipped: true, reason: 'no-messages' })
     }
 
-    // 7. Processa com IA
+    // 7. Busca dados do contato (se existir)
+    let contactData: ContactContext | undefined
+    if (conversation.contact_id) {
+      contactData = await getContactData(conversation.contact_id)
+      if (contactData) {
+        console.log(`🤖 [AI-RESPOND] Contact data loaded: ${contactData.name || 'unnamed'}`)
+      }
+    }
+
+    // 8. Processa com IA
     console.log(`🚀 [AI-RESPOND] Calling processChatAgent...`)
 
     const result = await processChatAgent({
       agent,
       conversation,
       messages,
+      contactData,
     })
 
     console.log(`✅ [AI-RESPOND] AI result: success=${result.success}, latency=${result.latencyMs}ms`)
@@ -210,6 +220,29 @@ export async function POST(req: NextRequest) {
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+/**
+ * Busca dados do contato para injetar no contexto da IA
+ */
+async function getContactData(contactId: string): Promise<ContactContext | undefined> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return undefined
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('name, email, tags, created_at')
+    .eq('id', contactId)
+    .single()
+
+  if (error || !data) return undefined
+
+  return {
+    name: data.name || undefined,
+    email: data.email || undefined,
+    tags: data.tags || undefined,
+    created_at: data.created_at || undefined,
+  }
+}
 
 /**
  * Busca o agente de IA para uma conversa

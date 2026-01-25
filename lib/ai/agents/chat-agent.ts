@@ -106,10 +106,18 @@ export function cancelDebounce(conversationId: string): void {
 // Types
 // =============================================================================
 
+export interface ContactContext {
+  name?: string
+  email?: string
+  tags?: string[]
+  created_at?: string
+}
+
 export interface SupportAgentConfig {
   agent: AIAgent
   conversation: InboxConversation
   messages: InboxMessage[]
+  contactData?: ContactContext
 }
 
 export interface SupportAgentResult {
@@ -370,8 +378,22 @@ export async function processChatAgent(
     // Schema é dinâmico baseado em handoff_enabled
     const handoffEnabled = agent.handoff_enabled ?? true // default true para compatibilidade
 
-    // Build system prompt: base + handoff instructions (if enabled) + memory context
+    // Build system prompt: base + contact context + handoff instructions + memory context
     let systemPrompt = agent.system_prompt
+
+    // Adiciona contexto do contato (nome, email, tags)
+    const { contactData } = config
+    if (contactData && (contactData.name || contactData.email || contactData.tags?.length)) {
+      const contactLines: string[] = []
+      if (contactData.name) contactLines.push(`- Nome: ${contactData.name}`)
+      if (contactData.email) contactLines.push(`- Email: ${contactData.email}`)
+      if (contactData.tags?.length) contactLines.push(`- Tags: ${contactData.tags.join(', ')}`)
+      if (contactData.created_at) {
+        const date = new Date(contactData.created_at).toLocaleDateString('pt-BR')
+        contactLines.push(`- Cliente desde: ${date}`)
+      }
+      systemPrompt += `\n\n## Contexto do Contato\n${contactLines.join('\n')}`
+    }
 
     // Adiciona instruções de handoff se habilitado e configurado
     if (handoffEnabled && agent.handoff_instructions) {
