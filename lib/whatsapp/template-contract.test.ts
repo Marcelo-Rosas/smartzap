@@ -87,7 +87,24 @@ describe('buildMetaTemplatePayload com LOCATION header', () => {
     ],
   }
 
-  it('deve construir payload correto com dados de localização', () => {
+  const locationTemplateWithData = {
+    ...locationTemplate,
+    components: [
+      {
+        type: 'HEADER',
+        format: 'LOCATION',
+        location: {
+          latitude: '-23.5505',
+          longitude: '-46.6333',
+          name: 'Loja Centro',
+          address: 'Rua Augusta, 500',
+        },
+      },
+      { type: 'BODY', text: 'Visite nossa loja!' },
+    ],
+  }
+
+  it('deve construir payload correto com dados de localização passados em values', () => {
     const payload = buildMetaTemplatePayload({
       to: '+5511999999999',
       templateName: 'location_template',
@@ -121,7 +138,35 @@ describe('buildMetaTemplatePayload com LOCATION header', () => {
     })
   })
 
-  it('deve lançar erro quando template LOCATION não tem dados de localização', () => {
+  it('deve extrair dados de localização do template quando não passados em values', () => {
+    const payload = buildMetaTemplatePayload({
+      to: '+5511999999999',
+      templateName: 'location_template',
+      language: 'pt_BR',
+      parameterFormat: 'positional',
+      values: {
+        body: [],
+      },
+      template: locationTemplateWithData as any,
+    })
+
+    expect(payload.template.components).toContainEqual({
+      type: 'header',
+      parameters: [
+        {
+          type: 'location',
+          location: {
+            latitude: '-23.5505',
+            longitude: '-46.6333',
+            name: 'Loja Centro',
+            address: 'Rua Augusta, 500',
+          },
+        },
+      ],
+    })
+  })
+
+  it('deve lançar erro quando template LOCATION não tem dados de localização em nenhum lugar', () => {
     expect(() =>
       buildMetaTemplatePayload({
         to: '+5511999999999',

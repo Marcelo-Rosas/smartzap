@@ -938,6 +938,9 @@ export function getUserFriendlyMessageForMetaError(input: WhatsAppMetaErrorConte
     if (expected === 'IMAGE') {
       return `O template usa Imagem, mas você enviou ${received}. Use a mídia correta ou edite o template.`
     }
+    if (expected === 'LOCATION') {
+      return 'O template usa Localização no cabeçalho. Configure latitude, longitude, nome e endereço antes de enviar.'
+    }
 
     return `Tipo de mídia incorreto: o template espera ${expected}, mas recebeu ${received}.`
   }

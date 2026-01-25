@@ -637,11 +637,26 @@ export function buildMetaTemplatePayload(input: {
 
   // HEADER de localização
   if (headerIsLocation) {
-    const loc = values.headerLocation
+    // Primeiro tenta usar os dados passados em values.headerLocation
+    // Se não existir, tenta extrair do componente HEADER do template (dados pré-configurados)
+    let loc = values.headerLocation
+    if (!loc?.latitude || !loc?.longitude) {
+      // Tenta extrair do template (dados salvos no builder)
+      const templateLocation = (headerComponent as any)?.location
+      if (templateLocation?.latitude && templateLocation?.longitude) {
+        loc = {
+          latitude: String(templateLocation.latitude),
+          longitude: String(templateLocation.longitude),
+          name: String(templateLocation.name || ''),
+          address: String(templateLocation.address || ''),
+        }
+      }
+    }
+
     if (!loc?.latitude || !loc?.longitude) {
       throw new Error(
         `Template "${templateName}" possui HEADER LOCATION, mas não há dados de localização configurados. ` +
-          'Configure latitude, longitude, nome e endereço para enviar este template.'
+          'Configure latitude, longitude, nome e endereço no template antes de enviar.'
       )
     }
 
