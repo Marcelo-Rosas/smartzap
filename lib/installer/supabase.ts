@@ -281,25 +281,35 @@ export async function listSupabaseProjects(params: { accessToken: string }): Pro
 
 /**
  * Cria um novo projeto Supabase.
+ *
+ * @param region - Região explícita (ex: 'us-east-1'). Tem prioridade sobre regionSmartGroup.
+ * @param regionSmartGroup - Seleção inteligente de região (deprecated, prefer region).
  */
 export async function createSupabaseProject(params: {
   accessToken: string;
   organizationSlug: string;
   name: string;
   dbPass: string;
+  region?: string;
   regionSmartGroup?: 'americas' | 'emea' | 'apac';
 }): Promise<
   | { ok: true; projectRef: string; projectName: string; response: unknown }
   | { ok: false; error: string; status?: number; response?: unknown }
 > {
-  const body = {
+  // Região explícita tem prioridade sobre smartGroup
+  const body: Record<string, unknown> = {
     name: params.name,
     organization_slug: params.organizationSlug,
     db_pass: params.dbPass,
-    region_selection: params.regionSmartGroup
-      ? { type: 'smartGroup', code: params.regionSmartGroup }
-      : undefined,
   };
+
+  if (params.region) {
+    // Usar região explícita (mais previsível, melhor para co-localização com Vercel)
+    body.region = params.region;
+  } else if (params.regionSmartGroup) {
+    // Fallback para smart group (pode escolher região mais distante)
+    body.region_selection = { type: 'smartGroup', code: params.regionSmartGroup };
+  }
 
   const res = await supabaseManagementFetch('/v1/projects', params.accessToken, {
     method: 'POST',

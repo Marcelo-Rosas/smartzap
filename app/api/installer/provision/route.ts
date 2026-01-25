@@ -260,12 +260,14 @@ async function findOrCreateSupabaseProject(
   await onProgress(0.4);
 
   // Create project
+  // Usa us-east-1 para co-localização com Vercel (região padrão: iad1/Washington D.C.)
+  // Isso minimiza latência e acelera propagação de DNS após criação do projeto
   const createResult = await createSupabaseProject({
     accessToken: pat,
     organizationSlug: org.slug || org.id,
     name: projectName,
     dbPass,
-    regionSmartGroup: 'americas', // São Paulo
+    region: 'us-east-1',
   });
 
   if (!createResult.ok) {
@@ -278,7 +280,7 @@ async function findOrCreateSupabaseProject(
         organizationSlug: org.slug || org.id,
         name: fallbackName,
         dbPass,
-        regionSmartGroup: 'americas',
+        region: 'us-east-1',
       });
 
       if (!retryResult.ok) {

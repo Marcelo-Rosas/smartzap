@@ -5,6 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns';
 import { Client } from 'pg';
 
 const MIGRATIONS_DIR = path.resolve(process.cwd(), 'supabase/migrations');
