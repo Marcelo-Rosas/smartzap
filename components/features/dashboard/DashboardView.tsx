@@ -50,16 +50,24 @@ const getCampaignLabel = (status: CampaignStatus) => {
 export const DashboardView: React.FC<DashboardViewProps> = ({ stats, recentCampaigns, isLoading }) => {
   const [range, setRange] = React.useState<'7D' | '15D' | '30D'>('7D');
   const [isMounted, setIsMounted] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
   const rangeSize = range === '7D' ? 7 : range === '15D' ? 15 : 30;
   const chartData = stats.chartData || [];
 
   React.useEffect(() => {
     // Aguarda o browser calcular as dimensões do container antes de renderizar o chart
     // Isso evita o warning "width(-1) height(-1)" do Recharts
-    const frame = requestAnimationFrame(() => {
-      setIsMounted(true);
-    });
-    return () => cancelAnimationFrame(frame);
+    // Usa setTimeout para garantir que o layout foi calculado após o primeiro paint
+    const timer = setTimeout(() => {
+      const container = containerRef.current;
+      if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        setIsMounted(true);
+      } else {
+        // Fallback: renderiza mesmo assim após 500ms
+        setTimeout(() => setIsMounted(true), 500);
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -140,8 +148,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, recentCampa
             aria-labelledby="chart-title"
             aria-describedby="chart-description"
           >
-            <div className="h-72 w-full">
-              {isMounted ? (
+            <div ref={containerRef} className="h-72 w-full">
+              {isMounted && chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <AreaChart data={chartData.slice(-rangeSize)} aria-hidden="true">
                   <defs>
