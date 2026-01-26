@@ -760,7 +760,10 @@ export async function POST(request: NextRequest) {
       if (skippedErr) throw skippedErr
 
       const updateCampaign: Record<string, unknown> = { updated_at: nowIso }
-      if (typeof totalCount === 'number') updateCampaign.total_recipients = totalCount
+      if (typeof totalCount === 'number') {
+        const skippedSafe = typeof skippedCount === 'number' ? skippedCount : 0
+        updateCampaign.total_recipients = Math.max(0, totalCount - skippedSafe)
+      }
       if (typeof skippedCount === 'number') updateCampaign.skipped = skippedCount
 
       await supabase
